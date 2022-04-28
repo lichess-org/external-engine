@@ -26,6 +26,7 @@ use tokio::{
     process::{ChildStdin, ChildStdout, Command},
     sync::{Mutex, MutexGuard, Notify},
 };
+use sysinfo::{System, SystemExt};
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -152,6 +153,7 @@ impl EnginePipes {
 struct RemoteSpec {
     url: String,
     threads: usize,
+    hash: u64,
 }
 
 #[tokio::main]
@@ -173,10 +175,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let spec = RemoteSpec {
         url: format!("ws://{}{}", opt.bind, secret_route),
         threads: thread::available_parallelism()?.into(),
+        hash: {
+            let sys = System::new_all();
+            sys.available_memory().next_power_of_two() / 2
+        }
     };
-    println!("https://lichess.org/analysis/remote?url={}&threads={}", spec.url, spec.threads);
-    println!("http://localhost:9664/analysis/remote?url={}&threads={}", spec.url, spec.threads);
-    println!("http://l.org/analysis/remote?url={}&threads={}", spec.url, spec.threads);
+
+    println!("https://lichess.org/analysis/remote?url={}&threads={}&hash={}", spec.url, spec.threads, spec.hash);
+    println!("http://localhost:9664/analysis/remote?url={}&threads={}&hash={}", spec.url, spec.threads, spec.hash);
+    println!("http://l.org/analysis/remote?url={}&threads={}&hash={}", spec.url, spec.threads, spec.hash);
 
     let app = Router::new().route(
         secret_route,
