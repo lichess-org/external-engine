@@ -68,6 +68,15 @@ impl Engine {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::Builder::from_env(
+        env_logger::Env::new()
+            .filter("REMOTE_UCI_LOG")
+            .write_style("REMOTE_UCI_LOG_STYLE"),
+    )
+    .format_target(false)
+    .format_module_path(false)
+    .init();
+
     let opt = Opt::parse();
 
     let engine = Arc::new(Engine::new(opt.engine).await?);
@@ -92,7 +101,9 @@ async fn handler(engine: Arc<Engine>, ws: WebSocketUpgrade) -> impl IntoResponse
 }
 
 async fn handle_socket(engine: Arc<Engine>, socket: WebSocket) {
-    handle_socket_inner(engine, socket).await;
+    if let Err(err) = handle_socket_inner(engine, socket).await {
+        log::warn!("socket handler error: {}", err);
+    }
 }
 
 async fn handle_socket_inner(
@@ -105,17 +116,25 @@ async fn handle_socket_inner(
         tokio::select! {
             msg = socket.recv() => {
                 match msg {
-                    Some(Ok(Message::Text(text))) => pipes.stdin.write_all(text.as_bytes()).await.map_err(|err| axum::Error::new(err))?,
+                    Some(Ok(Message::Text(mut text))) => {
+                        log::debug!("<< {}", text);
+                        text.push_str("\n");
+                        pipes.stdin.write_all(text.as_bytes()).await.map_err(|err| axum::Error::new(err))?;
+                        pipes.stdin.flush().await.map_err(|err| axum::Error::new(err))?;
+                    }
                     Some(Ok(Message::Pong(_))) => (),
                     Some(Ok(Message::Ping(data))) => socket.send(Message::Pong(data)).await?,
-                    Some(Ok(Message::Binary(binary))) => pipes.stdin.write_all(&binary).await.map_err(|err| axum::Error::new(err))?,
+                    Some(Ok(Message::Binary(_))) => return Err(axum::Error::new(io::Error::new(io::ErrorKind::InvalidData, "accepting only text messages"))),
                     None | Some(Ok(Message::Close(_))) => break,
                     Some(Err(err)) => return Err(err),
                 }
             }
             line = pipes.stdout.next_line() => {
                 match line {
-                    Ok(Some(line)) => socket.send(Message::Text(line)).await?,
+                    Ok(Some(line)) => {
+                        log::debug!(">> {}", line);
+                        socket.send(Message::Text(line)).await?;
+                    }
                     Ok(None) =>
                     return Err(axum::Error::new(io::Error::new(io::ErrorKind::UnexpectedEof, "engine stdout closed unexpectedly"))),
                     Err(err) => return Err(axum::Error::new(err)),
