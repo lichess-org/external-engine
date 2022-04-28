@@ -18,11 +18,12 @@ use axum::{
     Router,
 };
 use clap::Parser;
+use either::{Left, Right};
 use rand::random;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Lines},
     process::{ChildStdin, ChildStdout, Command},
-    sync::Mutex,
+    sync::{Mutex, MutexGuard, Notify},
 };
 
 #[derive(Debug, Parser)]
@@ -33,7 +34,8 @@ struct Opt {
 }
 
 struct Engine {
-    current_handler: AtomicU64,
+    session: AtomicU64,
+    notify: Notify,
     pipes: Mutex<EnginePipes>,
 }
 
@@ -53,7 +55,8 @@ impl Engine {
             .spawn()?;
 
         Ok(Engine {
-            current_handler: AtomicU64::new(0),
+            session: AtomicU64::new(0),
+            notify: Notify::new(),
             pipes: Mutex::new(EnginePipes {
                 pending_uciok: 0,
                 pending_bestmove: 0,
@@ -79,6 +82,7 @@ impl EnginePipes {
             _ => (),
         }
 
+        log::debug!("<< {}", msg);
         self.stdin.write_all(msg.to_string().as_bytes()).await?;
         self.stdin.write_all(b"\n").await?;
         self.stdin.flush().await?;
@@ -92,6 +96,7 @@ impl EnginePipes {
         };
 
         let msg = UciOut::from_str(&line)?;
+        log::debug!(">> {}", msg);
 
         match msg {
             UciOut::Uciok => {
@@ -179,44 +184,89 @@ async fn handler(engine: Arc<Engine>, ws: WebSocketUpgrade) -> impl IntoResponse
 }
 
 async fn handle_socket(engine: Arc<Engine>, mut socket: WebSocket) {
-    let mut pipes = engine.pipes.lock().await;
-    if let Err(err) = handle_socket_inner(&mut pipes, &mut socket).await {
+    if let Err(err) = handle_socket_inner(&engine, &mut socket).await {
         log::warn!("socket handler error: {}", err);
-    }
-    if let Err(err) = pipes.idle().await {
-        log::warn!("error while shutting down engine: {}", err);
     }
     let _ = socket.send(Message::Close(None)).await;
 }
 
-async fn handle_socket_inner(pipes: &mut EnginePipes, socket: &mut WebSocket) -> io::Result<()> {
+async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Result<()> {
+    let mut pipes: Option<MutexGuard<EnginePipes>> = None;
+
     loop {
-        tokio::select! {
-            engine_in = socket.recv() => {
-                match engine_in {
-                    Some(Ok(Message::Text(text))) => {
-                        let msg = UciIn::from_str(&text)?;
-                        log::debug!("<< {}", msg);
-                        pipes.write(msg).await?;
-                    }
-                    Some(Ok(Message::Pong(_))) => (),
-                    Some(Ok(Message::Ping(data))) => socket.send(Message::Pong(data)).await.map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?,
-                    Some(Ok(Message::Binary(_))) => return Err(io::Error::new(io::ErrorKind::InvalidData, "binary messages not supported")),
-                    None | Some(Ok(Message::Close(_))) => break Ok(()),
-                    Some(Err(err)) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, err)),
-                }
+        let event = if let Some(ref mut locked_pipes) = pipes {
+            tokio::select! {
+                engine_in = socket.recv() => Left(engine_in),
+                engine_out = locked_pipes.read() => Right(engine_out),
+                _ = engine.notify.notified() => continue,
             }
-            engine_out = pipes.read() => {
-                match engine_out {
-                    Ok(Some(UciOut::Unkown)) => (),
-                    Ok(Some(msg)) => {
-                        log::debug!(">> {}", msg);
-                        socket.send(Message::Text(msg.to_string())).await.map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?;
+        } else {
+            Left(socket.recv().await)
+        };
+
+        match event {
+            Left(Some(Ok(Message::Text(text)))) => {
+                let msg = UciIn::from_str(&text)?;
+
+                let mut locked_pipes = match pipes.take() {
+                    Some(locked_pipes) => locked_pipes,
+                    None => {
+                        engine.notify.notify_one();
+                        let mut locked_pipes = engine.pipes.lock().await;
+                        locked_pipes.idle().await?;
+                        locked_pipes.write(UciIn::Uci).await?;
+                        locked_pipes.idle().await?;
+                        locked_pipes.write(UciIn::Ucinewgame).await?;
+                        locked_pipes.write(UciIn::Isready).await?;
+                        locked_pipes.idle().await?;
+                        locked_pipes
                     }
-                    Ok(None) => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "engine stdout closed unexpectedly")),
-                    Err(err) => return Err(err),
-                }
+                };
+
+                locked_pipes.write(msg).await?;
+                pipes = Some(locked_pipes);
             }
+            Left(Some(Ok(Message::Pong(_)))) => (),
+            Left(Some(Ok(Message::Ping(data)))) => socket
+                .send(Message::Pong(data))
+                .await
+                .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?,
+            Left(Some(Ok(Message::Binary(_)))) => {
+                if let Some(ref mut locked_pipes) = pipes {
+                    locked_pipes.idle().await?;
+                }
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "binary messages not supported",
+                ));
+            }
+            Left(None | Some(Ok(Message::Close(_)))) => {
+                if let Some(ref mut locked_pipes) = pipes {
+                    locked_pipes.idle().await?;
+                }
+                break Ok(());
+            }
+            Left(Some(Err(err))) => {
+                if let Some(ref mut locked_pipes) = pipes {
+                    locked_pipes.idle().await?;
+                }
+                return Err(io::Error::new(io::ErrorKind::BrokenPipe, err));
+            }
+
+            Right(Ok(Some(UciOut::Unkown))) => (),
+            Right(Ok(Some(msg))) => {
+                socket
+                    .send(Message::Text(msg.to_string()))
+                    .await
+                    .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?;
+            }
+            Right(Ok(None)) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "engine stdout closed unexpectedly",
+                ))
+            }
+            Right(Err(err)) => return Err(err),
         }
     }
 }
