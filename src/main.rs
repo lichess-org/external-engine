@@ -117,6 +117,25 @@ impl EnginePipes {
 
         Ok(Some(msg))
     }
+
+    async fn idle(&mut self) -> io::Result<()> {
+        let mut stopped = false;
+
+        while self.pending_uciok > 0 || self.pending_readyok > 0 || self.pending_bestmove > 0 {
+            if self.pending_bestmove > 0 && !stopped {
+                self.write(UciIn::Stop).await?;
+                stopped = true;
+            }
+
+            match self.read().await? {
+                Some(UciOut::Bestmove(_)) => stopped = false,
+                Some(_) => (),
+                None => break,
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[tokio::main]
@@ -168,41 +187,39 @@ async fn handle_socket(engine: Arc<Engine>, socket: WebSocket) {
 async fn handle_socket_inner(
     engine: Arc<Engine>,
     mut socket: WebSocket,
-) -> Result<(), axum::Error> {
+) -> io::Result<()> {
     let current_handler = engine.current_handler.fetch_add(1, Ordering::SeqCst) + 1;
     let mut pipes = engine.pipes.lock().await;
     while current_handler == engine.current_handler.load(Ordering::SeqCst) {
         tokio::select! {
-            msg = socket.recv() => {
-                match msg {
-                    Some(Ok(Message::Text(mut text))) => {
-                        log::debug!("<< {}", text);
-                        text.push_str("\n");
-                        pipes.stdin.write_all(text.as_bytes()).await.map_err(|err| axum::Error::new(err))?;
-                        pipes.stdin.flush().await.map_err(|err| axum::Error::new(err))?;
+            engine_in = socket.recv() => {
+                match engine_in {
+                    Some(Ok(Message::Text(text))) => {
+                        let msg = UciIn::from_str(&text)?;
+                        log::debug!("<< {}", msg);
+                        pipes.write(msg).await?;
                     }
                     Some(Ok(Message::Pong(_))) => (),
-                    Some(Ok(Message::Ping(data))) => socket.send(Message::Pong(data)).await?,
-                    Some(Ok(Message::Binary(_))) => return Err(axum::Error::new(io::Error::new(io::ErrorKind::InvalidData, "accepting only text messages"))),
+                    Some(Ok(Message::Ping(data))) => socket.send(Message::Pong(data)).await.map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?,
+                    Some(Ok(Message::Binary(_))) => return Err(io::Error::new(io::ErrorKind::InvalidData, "binary messages not supported")),
                     None | Some(Ok(Message::Close(_))) => break,
-                    Some(Err(err)) => return Err(err),
+                    Some(Err(err)) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, err)),
                 }
             }
-            line = pipes.stdout.next_line() => {
-                match line {
-                    Ok(Some(line)) => {
-                        log::debug!(">> {}", line);
-                        socket.send(Message::Text(line)).await?;
+            engine_out = pipes.read() => {
+                match engine_out {
+                    Ok(Some(msg)) => {
+                        log::debug!(">> {}", msg);
+                        socket.send(Message::Text(msg.to_string())).await.map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?;
                     }
-                    Ok(None) =>
-                    return Err(axum::Error::new(io::Error::new(io::ErrorKind::UnexpectedEof, "engine stdout closed unexpectedly"))),
-                    Err(err) => return Err(axum::Error::new(err)),
+                    Ok(None) => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "engine stdout closed unexpectedly")),
+                    Err(err) => return Err(err),
                 }
             }
         }
     }
-    socket.send(Message::Close(None)).await?;
-    Ok(())
+
+    socket.send(Message::Close(None)).await.map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))
 }
 
 enum UciIn {
@@ -217,7 +234,7 @@ enum UciIn {
 }
 
 impl FromStr for UciIn {
-    type Err = ();
+    type Err = io::Error;
 
     fn from_str(s: &str) -> Result<UciIn, Self::Err> {
         let mut parts = s.split(' ');
@@ -227,10 +244,10 @@ impl FromStr for UciIn {
             "ucinewgame" => UciIn::Ucinewgame,
             "ponderhit" => UciIn::Ponderhit,
             "stop" => UciIn::Stop,
-            "setoption" => UciIn::Setoption(parts.next().ok_or_else(|| ())?.to_owned()),
-            "position" => UciIn::Position(parts.next().ok_or_else(|| ())?.to_owned()),
-            "go" => UciIn::Go(parts.next().ok_or_else(|| ())?.to_owned()),
-            _ => return Err(()),
+            "setoption" => UciIn::Setoption(parts.next().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid setopion"))?.to_owned()),
+            "position" => UciIn::Position(parts.next().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid position"))?.to_owned()),
+            "go" => UciIn::Go(parts.next().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid go"))?.to_owned()),
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid uci input")),
         })
     }
 }
