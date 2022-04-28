@@ -17,6 +17,7 @@ use axum::{
     Router,
 };
 use clap::Parser;
+use rand::random;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Lines},
     process::{ChildStdin, ChildStdout, Command},
@@ -28,10 +29,6 @@ struct Opt {
     engine: PathBuf,
     #[clap(long, default_value = "127.0.0.1:9670")]
     bind: SocketAddr,
-}
-
-fn secret() -> String {
-    format!("{:032x}", rand::random::<u128>())
 }
 
 struct Engine {
@@ -81,8 +78,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let engine = Arc::new(Engine::new(opt.engine).await?);
 
+    let secret_route = Box::leak(format!("/{:032x}", random::<u128>()).into_boxed_str());
+    log::info!(
+        "secret route: file:///home/niklas/Projekte/remote-uci/test.html#{}",
+        secret_route
+    );
+
     let app = Router::new().route(
-        "/:secret",
+        secret_route,
         get({
             let engine = Arc::clone(&engine);
             move |ws| handler(engine, ws)

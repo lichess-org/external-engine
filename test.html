@@ -1,5 +1,5 @@
 <script>
-window.ws = new WebSocket('ws://localhost:9670/secret');
+window.ws = new WebSocket(`ws://localhost:9670${document.location.hash.slice(1)}`);
 window.ws.onopen = (e) => {
   console.log('open', e);
 };
