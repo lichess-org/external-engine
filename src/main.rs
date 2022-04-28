@@ -26,7 +26,7 @@ use tokio::{
     process::{ChildStdin, ChildStdout, Command},
     sync::{Mutex, MutexGuard, Notify},
 };
-use sysinfo::{System, SystemExt};
+use sysinfo::{System, SystemExt, RefreshKind};
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -154,6 +154,7 @@ struct RemoteSpec {
     url: String,
     threads: usize,
     hash: u64,
+    variants: Vec<()>,
 }
 
 #[tokio::main]
@@ -176,9 +177,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         url: format!("ws://{}{}", opt.bind, secret_route),
         threads: thread::available_parallelism()?.into(),
         hash: {
-            let sys = System::new_all();
+            let sys = System::new_with_specifics(RefreshKind::new().with_memory());
             sys.available_memory().next_power_of_two() / 2
-        }
+        },
+        variants: Vec::new(),
     };
 
     println!("https://lichess.org/analysis/remote?url={}&threads={}&hash={}", spec.url, spec.threads, spec.hash);
