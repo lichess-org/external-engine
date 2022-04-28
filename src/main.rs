@@ -43,6 +43,7 @@ struct EnginePipes {
     pending_uciok: u64,
     pending_readyok: u64,
     pending_bestmove: u64,
+    pending_stops: u64,
     stdin: BufWriter<ChildStdin>,
     stdout: Lines<BufReader<ChildStdout>>,
 }
@@ -61,6 +62,7 @@ impl Engine {
                 pending_uciok: 0,
                 pending_bestmove: 0,
                 pending_readyok: 0,
+                pending_stops: 0,
                 stdin: BufWriter::new(process.stdin.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdin closed")
                 })?),
@@ -79,6 +81,7 @@ impl EnginePipes {
             UciIn::Uci => self.pending_uciok += 1,
             UciIn::Isready => self.pending_readyok += 1,
             UciIn::Go(_) => self.pending_bestmove += 1,
+            UciIn::Stop => self.pending_stops += 1,
             _ => (),
         }
 
@@ -112,6 +115,7 @@ impl EnginePipes {
                 })
             }
             UciOut::Bestmove(_) => {
+                self.pending_stops = self.pending_stops.saturating_sub(1);
                 self.pending_bestmove = self.pending_bestmove.checked_sub(1).unwrap_or_else(|| {
                     log::warn!("unexpected bestmove");
                     0
@@ -123,17 +127,17 @@ impl EnginePipes {
         Ok(Some(msg))
     }
 
-    async fn idle(&mut self) -> io::Result<()> {
-        let mut stopped = false;
+    fn is_idle(&self) -> bool {
+        self.pending_uciok == 0 && self.pending_readyok == 0 && self.pending_bestmove == 0
+    }
 
-        while self.pending_uciok > 0 || self.pending_readyok > 0 || self.pending_bestmove > 0 {
-            if self.pending_bestmove > 0 && !stopped {
+    async fn idle(&mut self) -> io::Result<()> {
+        while !self.is_idle() {
+            if self.pending_bestmove > self.pending_stops {
                 self.write(UciIn::Stop).await?;
-                stopped = true;
             }
 
             match self.read().await? {
-                Some(UciOut::Bestmove(_)) => stopped = false,
                 Some(_) => (),
                 None => break,
             }
@@ -192,8 +196,25 @@ async fn handle_socket(engine: Arc<Engine>, mut socket: WebSocket) {
 
 async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Result<()> {
     let mut pipes: Option<MutexGuard<EnginePipes>> = None;
+    let mut session = 0;
 
     loop {
+        if let Some(mut locked_pipes) = pipes.take() {
+            if session != engine.session.load(Ordering::SeqCst) {
+                log::info!("ending session ...");
+                if !locked_pipes.is_idle() {
+                    if locked_pipes.pending_bestmove > locked_pipes.pending_stops {
+                        locked_pipes.write(UciIn::Stop).await?;
+                    }
+                    pipes = Some(locked_pipes);
+                } else {
+                    log::info!("session ended");
+                }
+            } else {
+                pipes = Some(locked_pipes);
+            }
+        }
+
         let event = if let Some(ref mut locked_pipes) = pipes {
             tokio::select! {
                 engine_in = socket.recv() => Left(engine_in),
@@ -211,13 +232,11 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
                 let mut locked_pipes = match pipes.take() {
                     Some(locked_pipes) => locked_pipes,
                     None => {
+                        log::info!("starting or restarting session ...");
+                        session = engine.session.fetch_add(1, Ordering::SeqCst) + 1;
                         engine.notify.notify_one();
                         let mut locked_pipes = engine.pipes.lock().await;
-                        locked_pipes.idle().await?;
-                        locked_pipes.write(UciIn::Uci).await?;
-                        locked_pipes.idle().await?;
-                        locked_pipes.write(UciIn::Ucinewgame).await?;
-                        locked_pipes.write(UciIn::Isready).await?;
+                        log::info!("new sesstion started.");
                         locked_pipes.idle().await?;
                         locked_pipes
                     }
@@ -286,7 +305,7 @@ impl FromStr for UciIn {
     type Err = io::Error;
 
     fn from_str(s: &str) -> Result<UciIn, Self::Err> {
-        let mut parts = s.split(' ');
+        let mut parts = s.splitn(2, ' ');
         Ok(match parts.next().unwrap() {
             "uci" => UciIn::Uci,
             "isready" => UciIn::Isready,
