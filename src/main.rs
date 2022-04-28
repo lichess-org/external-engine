@@ -9,6 +9,7 @@ use std::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
+    thread,
 };
 
 use axum::{
@@ -147,6 +148,12 @@ impl EnginePipes {
     }
 }
 
+#[derive(Debug)]
+struct RemoteSpec {
+    url: String,
+    threads: usize,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(
@@ -162,11 +169,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let engine = Arc::new(Engine::new(opt.engine).await?);
 
-    let secret_route = Box::leak(format!("/{:032x}", random::<u128>() & 0).into_boxed_str()); // XXX
-    log::info!(
-        "secret route: file:///home/niklas/Projekte/remote-uci/test.html#{}",
-        secret_route
-    );
+    let secret_route = Box::leak(format!("/{:032x}", random::<u128>()).into_boxed_str());
+    let spec = RemoteSpec {
+        url: format!("ws://{}{}", opt.bind, secret_route),
+        threads: thread::available_parallelism()?.into(),
+    };
+    println!("https://lichess.org/analysis/remote?url={}&threads={}", spec.url, spec.threads);
+    println!("http://localhost:9664/analysis/remote?url={}&threads={}", spec.url, spec.threads);
+    println!("http://l.org/analysis/remote?url={}&threads={}", spec.url, spec.threads);
 
     let app = Router::new().route(
         secret_route,
