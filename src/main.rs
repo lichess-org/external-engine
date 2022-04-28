@@ -1,9 +1,10 @@
 use std::{
     error::Error,
-    io,
+    fmt, io,
     net::SocketAddr,
     path::PathBuf,
     process::Stdio,
+    str::FromStr,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -21,7 +22,7 @@ use rand::random;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Lines},
     process::{ChildStdin, ChildStdout, Command},
-    sync::{mpsc, Mutex},
+    sync::Mutex,
 };
 
 #[derive(Debug, Parser)]
@@ -147,4 +148,88 @@ async fn handle_socket_inner(
     }
     socket.send(Message::Close(None)).await?;
     Ok(())
+}
+
+enum UciIn {
+    Uci,
+    Isready,
+    Setoption(String),
+    Ucinewgame,
+    Position(String),
+    Go(String),
+    Stop,
+    Ponderhit,
+}
+
+impl FromStr for UciIn {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<UciIn, Self::Err> {
+        let mut parts = s.split(' ');
+        Ok(match parts.next().unwrap() {
+            "uci" => UciIn::Uci,
+            "isready" => UciIn::Isready,
+            "ucinewgame" => UciIn::Ucinewgame,
+            "ponderhit" => UciIn::Ponderhit,
+            "stop" => UciIn::Stop,
+            "setoption" => UciIn::Setoption(parts.next().ok_or_else(|| ())?.to_owned()),
+            "position" => UciIn::Position(parts.next().ok_or_else(|| ())?.to_owned()),
+            "go" => UciIn::Go(parts.next().ok_or_else(|| ())?.to_owned()),
+            _ => return Err(()),
+        })
+    }
+}
+
+impl fmt::Display for UciIn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UciIn::Uci => f.write_str("uci"),
+            UciIn::Isready => f.write_str("isready"),
+            UciIn::Setoption(args) => write!(f, "setoption {}", args),
+            UciIn::Ucinewgame => f.write_str("ucinewgame"),
+            UciIn::Position(args) => write!(f, "position {}", args),
+            UciIn::Go(args) => write!(f, "go {}", args),
+            UciIn::Stop => f.write_str("stop"),
+            UciIn::Ponderhit => f.write_str("ponderhit"),
+        }
+    }
+}
+
+enum UciOut {
+    Id(String),
+    Uciok,
+    Readok,
+    Bestmove(String),
+    Info(String),
+    Option(String),
+}
+
+impl FromStr for UciOut {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<UciOut, Self::Err> {
+        let mut parts = s.splitn(2, ' ');
+        Ok(match parts.next().unwrap() {
+            "id" => UciOut::Id(parts.next().ok_or_else(|| ())?.to_owned()),
+            "uciok" => UciOut::Uciok,
+            "readyok" => UciOut::Readok,
+            "bestmove" => UciOut::Bestmove(parts.next().ok_or_else(|| ())?.to_owned()),
+            "info" => UciOut::Info(parts.next().ok_or_else(|| ())?.to_owned()),
+            "option" => UciOut::Option(parts.next().ok_or_else(|| ())?.to_owned()),
+            _ => return Err(()),
+        })
+    }
+}
+
+impl fmt::Display for UciOut {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UciOut::Id(args) => write!(f, "id {}", args),
+            UciOut::Uciok => f.write_str("uciok"),
+            UciOut::Readok => f.write_str("readyok"),
+            UciOut::Bestmove(args) => write!(f, "bestmove {}", args),
+            UciOut::Info(args) => write!(f, "info {}", args),
+            UciOut::Option(args) => write!(f, "option {}", args),
+        }
+    }
 }
