@@ -91,7 +91,31 @@ impl EnginePipes {
             None => return Ok(None),
         };
 
-        Ok(Some(UciOut::from_str(&line)?))
+        let msg = UciOut::from_str(&line)?;
+
+        match msg {
+            UciOut::Uciok => {
+                self.pending_uciok = self.pending_uciok.checked_sub(1).unwrap_or_else(|| {
+                    log::warn!("unexpected uciok");
+                    0
+                })
+            }
+            UciOut::Readok => {
+                self.pending_readyok = self.pending_readyok.checked_sub(1).unwrap_or_else(|| {
+                    log::warn!("unexpected readyok");
+                    0
+                })
+            }
+            UciOut::Bestmove(_) => {
+                self.pending_bestmove = self.pending_bestmove.checked_sub(1).unwrap_or_else(|| {
+                    log::warn!("unexpected bestmove");
+                    0
+                })
+            }
+            _ => (),
+        }
+
+        Ok(Some(msg))
     }
 }
 
