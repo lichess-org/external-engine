@@ -18,7 +18,7 @@ use axum::{
 };
 use clap::Parser;
 use tokio::{
-    io::{AsyncWriteExt, BufWriter},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Lines},
     process::{ChildStdin, ChildStdout, Command},
     sync::{mpsc, Mutex},
 };
@@ -41,7 +41,7 @@ struct Engine {
 
 struct EnginePipes {
     stdin: BufWriter<ChildStdin>,
-    stdout: ChildStdout,
+    stdout: Lines<BufReader<ChildStdout>>,
 }
 
 impl Engine {
@@ -57,9 +57,10 @@ impl Engine {
                 stdin: BufWriter::new(process.stdin.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdin closed")
                 })?),
-                stdout: process.stdout.take().ok_or_else(|| {
+                stdout: BufReader::new(process.stdout.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdout closed")
-                })?,
+                })?)
+                .lines(),
             }),
         })
     }
@@ -110,6 +111,14 @@ async fn handle_socket_inner(
                     Some(Ok(Message::Binary(binary))) => pipes.stdin.write_all(&binary).await.map_err(|err| axum::Error::new(err))?,
                     None | Some(Ok(Message::Close(_))) => break,
                     Some(Err(err)) => return Err(err),
+                }
+            }
+            line = pipes.stdout.next_line() => {
+                match line {
+                    Ok(Some(line)) => socket.send(Message::Text(line)).await?,
+                    Ok(None) =>
+                    return Err(axum::Error::new(io::Error::new(io::ErrorKind::UnexpectedEof, "engine stdout closed unexpectedly"))),
+                    Err(err) => return Err(axum::Error::new(err)),
                 }
             }
         }
