@@ -153,7 +153,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let engine = Arc::new(Engine::new(opt.engine).await?);
 
-    let secret_route = Box::leak(format!("/{:032x}", random::<u128>()).into_boxed_str());
+    let secret_route = Box::leak(format!("/{:032x}", random::<u128>() & 0).into_boxed_str()); // XXX
     log::info!(
         "secret route: file:///home/niklas/Projekte/remote-uci/test.html#{}",
         secret_route
@@ -178,19 +178,19 @@ async fn handler(engine: Arc<Engine>, ws: WebSocketUpgrade) -> impl IntoResponse
     ws.on_upgrade(move |socket| handle_socket(engine, socket))
 }
 
-async fn handle_socket(engine: Arc<Engine>, socket: WebSocket) {
-    if let Err(err) = handle_socket_inner(engine, socket).await {
+async fn handle_socket(engine: Arc<Engine>, mut socket: WebSocket) {
+    let mut pipes = engine.pipes.lock().await;
+    if let Err(err) = handle_socket_inner(&mut pipes, &mut socket).await {
         log::warn!("socket handler error: {}", err);
     }
+    if let Err(err) = pipes.idle().await {
+        log::warn!("error while shutting down engine: {}", err);
+    }
+    let _ = socket.send(Message::Close(None)).await;
 }
 
-async fn handle_socket_inner(
-    engine: Arc<Engine>,
-    mut socket: WebSocket,
-) -> io::Result<()> {
-    let current_handler = engine.current_handler.fetch_add(1, Ordering::SeqCst) + 1;
-    let mut pipes = engine.pipes.lock().await;
-    while current_handler == engine.current_handler.load(Ordering::SeqCst) {
+async fn handle_socket_inner(pipes: &mut EnginePipes, socket: &mut WebSocket) -> io::Result<()> {
+    loop {
         tokio::select! {
             engine_in = socket.recv() => {
                 match engine_in {
@@ -202,12 +202,13 @@ async fn handle_socket_inner(
                     Some(Ok(Message::Pong(_))) => (),
                     Some(Ok(Message::Ping(data))) => socket.send(Message::Pong(data)).await.map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?,
                     Some(Ok(Message::Binary(_))) => return Err(io::Error::new(io::ErrorKind::InvalidData, "binary messages not supported")),
-                    None | Some(Ok(Message::Close(_))) => break,
+                    None | Some(Ok(Message::Close(_))) => break Ok(()),
                     Some(Err(err)) => return Err(io::Error::new(io::ErrorKind::BrokenPipe, err)),
                 }
             }
             engine_out = pipes.read() => {
                 match engine_out {
+                    Ok(Some(UciOut::Unkown)) => (),
                     Ok(Some(msg)) => {
                         log::debug!(">> {}", msg);
                         socket.send(Message::Text(msg.to_string())).await.map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?;
@@ -218,8 +219,6 @@ async fn handle_socket_inner(
             }
         }
     }
-
-    socket.send(Message::Close(None)).await.map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))
 }
 
 enum UciIn {
@@ -244,10 +243,30 @@ impl FromStr for UciIn {
             "ucinewgame" => UciIn::Ucinewgame,
             "ponderhit" => UciIn::Ponderhit,
             "stop" => UciIn::Stop,
-            "setoption" => UciIn::Setoption(parts.next().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid setopion"))?.to_owned()),
-            "position" => UciIn::Position(parts.next().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid position"))?.to_owned()),
-            "go" => UciIn::Go(parts.next().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid go"))?.to_owned()),
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid uci input")),
+            "setoption" => UciIn::Setoption(
+                parts
+                    .next()
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid setopion"))?
+                    .to_owned(),
+            ),
+            "position" => UciIn::Position(
+                parts
+                    .next()
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid position"))?
+                    .to_owned(),
+            ),
+            "go" => UciIn::Go(
+                parts
+                    .next()
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid go"))?
+                    .to_owned(),
+            ),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "invalid uci input",
+                ))
+            }
         })
     }
 }
