@@ -38,6 +38,9 @@ struct Engine {
 }
 
 struct EnginePipes {
+    pending_uciok: u64,
+    pending_readyok: u64,
+    pending_bestmove: u64,
     stdin: BufWriter<ChildStdin>,
     stdout: Lines<BufReader<ChildStdout>>,
 }
@@ -52,6 +55,9 @@ impl Engine {
         Ok(Engine {
             current_handler: AtomicU64::new(0),
             pipes: Mutex::new(EnginePipes {
+                pending_uciok: 0,
+                pending_bestmove: 0,
+                pending_readyok: 0,
                 stdin: BufWriter::new(process.stdin.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdin closed")
                 })?),
@@ -61,6 +67,31 @@ impl Engine {
                 .lines(),
             }),
         })
+    }
+}
+
+impl EnginePipes {
+    async fn write(&mut self, msg: UciIn) -> io::Result<()> {
+        match msg {
+            UciIn::Uci => self.pending_uciok += 1,
+            UciIn::Isready => self.pending_readyok += 1,
+            UciIn::Go(_) => self.pending_bestmove += 1,
+            _ => (),
+        }
+
+        self.stdin.write_all(msg.to_string().as_bytes()).await?;
+        self.stdin.write_all(b"\n").await?;
+        self.stdin.flush().await?;
+        Ok(())
+    }
+
+    async fn read(&mut self) -> io::Result<Option<UciOut>> {
+        let line = match self.stdout.next_line().await? {
+            Some(line) => line,
+            None => return Ok(None),
+        };
+
+        Ok(Some(UciOut::from_str(&line)?))
     }
 }
 
@@ -202,21 +233,42 @@ enum UciOut {
     Bestmove(String),
     Info(String),
     Option(String),
+    Unkown,
 }
 
 impl FromStr for UciOut {
-    type Err = ();
+    type Err = io::Error;
 
     fn from_str(s: &str) -> Result<UciOut, Self::Err> {
         let mut parts = s.splitn(2, ' ');
         Ok(match parts.next().unwrap() {
-            "id" => UciOut::Id(parts.next().ok_or_else(|| ())?.to_owned()),
+            "id" => UciOut::Id(
+                parts
+                    .next()
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid id"))?
+                    .to_owned(),
+            ),
             "uciok" => UciOut::Uciok,
             "readyok" => UciOut::Readok,
-            "bestmove" => UciOut::Bestmove(parts.next().ok_or_else(|| ())?.to_owned()),
-            "info" => UciOut::Info(parts.next().ok_or_else(|| ())?.to_owned()),
-            "option" => UciOut::Option(parts.next().ok_or_else(|| ())?.to_owned()),
-            _ => return Err(()),
+            "bestmove" => UciOut::Bestmove(
+                parts
+                    .next()
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid bestmove"))?
+                    .to_owned(),
+            ),
+            "info" => UciOut::Info(
+                parts
+                    .next()
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid info"))?
+                    .to_owned(),
+            ),
+            "option" => UciOut::Option(
+                parts
+                    .next()
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid option"))?
+                    .to_owned(),
+            ),
+            _ => UciOut::Unkown,
         })
     }
 }
@@ -230,6 +282,7 @@ impl fmt::Display for UciOut {
             UciOut::Bestmove(args) => write!(f, "bestmove {}", args),
             UciOut::Info(args) => write!(f, "info {}", args),
             UciOut::Option(args) => write!(f, "option {}", args),
+            UciOut::Unkown => Ok(()),
         }
     }
 }
