@@ -238,6 +238,9 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
                         let mut locked_pipes = engine.pipes.lock().await;
                         log::info!("new sesstion started.");
                         locked_pipes.idle().await?;
+                        locked_pipes.write(UciIn::Ucinewgame).await?;
+                        locked_pipes.write(UciIn::Isready).await?;
+                        locked_pipes.idle().await?;
                         locked_pipes
                     }
                 };
