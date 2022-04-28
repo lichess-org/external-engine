@@ -1,0 +1,15 @@
+<script>
+window.ws = new WebSocket('ws://localhost:9670/secret');
+window.ws.onopen = (e) => {
+  console.log('open', e);
+};
+window.ws.onerror = (e) => {
+  console.log('error', e);
+};
+window.ws.onclose = (e) => {
+  console.log('close', e);
+};
+window.ws.onmessage = (e) => {
+  console.log('message', e);
+};
+</script>
