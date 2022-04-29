@@ -87,7 +87,7 @@ impl EnginePipes {
             _ => (),
         }
 
-        log::debug!("<< {}", msg);
+        log::info!("<< {}", msg);
         self.stdin.write_all(msg.to_string().as_bytes()).await?;
         self.stdin.write_all(b"\n").await?;
         self.stdin.flush().await?;
@@ -170,22 +170,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let opt = Opt::parse();
 
-    let engine = Arc::new(Engine::new(opt.engine).await?);
+    let engine = Engine::new(opt.engine).await?;
 
-    let secret_route = Box::leak(format!("/{:032x}", random::<u128>()).into_boxed_str());
+    let mut locked_pipes = engine.pipes.lock().await;
+    locked_pipes.write(UciIn::Uci).await?;
+    locked_pipes.idle().await?;
+    drop(locked_pipes);
+
+    let engine = Arc::new(engine);
+
+    let secret_route = Box::leak(format!("/{:032x}", random::<u128>() & 0).into_boxed_str());
     let spec = RemoteSpec {
         url: format!("ws://{}{}", opt.bind, secret_route),
         threads: thread::available_parallelism()?.into(),
         hash: {
             let sys = System::new_with_specifics(RefreshKind::new().with_memory());
-            sys.available_memory().next_power_of_two() / 2
+            (sys.available_memory() / 1024).next_power_of_two() / 2
         },
         variants: Vec::new(),
     };
 
-    println!("https://lichess.org/analysis/remote?url={}&threads={}&hash={}", spec.url, spec.threads, spec.hash);
-    println!("http://localhost:9664/analysis/remote?url={}&threads={}&hash={}", spec.url, spec.threads, spec.hash);
-    println!("http://l.org/analysis/remote?url={}&threads={}&hash={}", spec.url, spec.threads, spec.hash);
+    for prefix in ["https://lichess.org", "https://lichess.dev", "http://localhost:9663", "http://l.org"] {
+        println!("{}/analysis/external?url={}&maxThreads={}&maxHash={}&name={}", prefix, spec.url, spec.threads, spec.hash, "remote-uci");
+    }
 
     let app = Router::new().route(
         secret_route,
