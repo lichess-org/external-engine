@@ -20,12 +20,12 @@ use axum::{
 use clap::Parser;
 use either::{Left, Right};
 use rand::random;
+use sysinfo::{RefreshKind, System, SystemExt};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     process::{ChildStdin, ChildStdout, Command},
     sync::{Mutex, MutexGuard, Notify},
 };
-use sysinfo::{System, SystemExt, RefreshKind};
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -76,7 +76,10 @@ impl Engine {
 impl EnginePipes {
     async fn write(&mut self, line: &[u8]) -> io::Result<()> {
         if line.contains(&b'\n') {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "disallowed line feed"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "disallowed line feed",
+            ));
         }
 
         match ClientCommand::classify(line) {
@@ -84,11 +87,14 @@ impl EnginePipes {
             Some(ClientCommand::Isready) => self.pending_readyok += 1,
             Some(ClientCommand::Go) => {
                 if self.searching {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "already searching"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "already searching",
+                    ));
                 }
                 self.searching = true;
             }
-            None => (),
+            _ => (),
         }
 
         log::info!("<< {}", String::from_utf8_lossy(line));
@@ -107,13 +113,19 @@ impl EnginePipes {
         if line.ends_with(b"\r") {
             line.pop();
         }
-        log::debug!(">> {}", String::from_utf8_lossy(&line));
+
+        match EngineCommand::classify(&line) {
+            Some(EngineCommand::Info) => log::debug!(">> {}", String::from_utf8_lossy(&line)),
+            _ => log::info!(">> {}", String::from_utf8_lossy(&line)),
+        }
 
         match EngineCommand::classify(&line) {
             Some(EngineCommand::Uciok) => self.pending_uciok = self.pending_uciok.saturating_sub(1),
-            Some(EngineCommand::Readyok) => self.pending_readyok = self.pending_readyok.saturating_sub(1),
+            Some(EngineCommand::Readyok) => {
+                self.pending_readyok = self.pending_readyok.saturating_sub(1)
+            }
             Some(EngineCommand::Bestmove) => self.searching = false,
-            None => (),
+            _ => (),
         }
         Ok(line)
     }
@@ -181,8 +193,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         variants: Vec::new(),
     };
 
-    for prefix in ["https://lichess.org", "https://lichess.dev", "http://localhost:9663", "http://l.org"] {
-        println!("{}/analysis/external?url={}&maxThreads={}&maxHash={}&name={}", prefix, spec.url, spec.threads, spec.hash, "remote-uci");
+    for prefix in [
+        "https://lichess.org",
+        "https://lichess.dev",
+        "http://localhost:9663",
+        "http://l.org",
+    ] {
+        println!(
+            "{}/analysis/external?url={}&maxThreads={}&maxHash={}&name={}",
+            prefix, spec.url, spec.threads, spec.hash, "remote-uci"
+        );
     }
 
     let app = Router::new().route(
@@ -246,6 +266,11 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
             Left(Some(Ok(Message::Text(text)))) => {
                 let mut locked_pipes = match pipes.take() {
                     Some(locked_pipes) => locked_pipes,
+                    None if ClientCommand::classify(text.as_bytes())
+                        == Some(ClientCommand::Stop) =>
+                    {
+                        continue
+                    }
                     None => {
                         session = engine.session.fetch_add(1, Ordering::SeqCst) + 1;
                         log::warn!("starting or restarting session {} ...", session);
@@ -289,7 +314,9 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
 
             Right(Ok(msg)) => {
                 socket
-                    .send(Message::Text(String::from_utf8(msg).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?))
+                    .send(Message::Text(String::from_utf8(msg).map_err(|err| {
+                        io::Error::new(io::ErrorKind::InvalidData, err)
+                    })?))
                     .await
                     .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?;
             }
@@ -298,10 +325,12 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
     }
 }
 
+#[derive(Eq, PartialEq)]
 enum ClientCommand {
     Uci,
     Isready,
     Go,
+    Stop,
 }
 
 impl ClientCommand {
@@ -310,6 +339,7 @@ impl ClientCommand {
             b"uci" => ClientCommand::Uci,
             b"isready" => ClientCommand::Isready,
             b"go" => ClientCommand::Go,
+            b"stop" => ClientCommand::Stop,
             _ => return None,
         })
     }
@@ -319,6 +349,7 @@ enum EngineCommand {
     Uciok,
     Readyok,
     Bestmove,
+    Info,
 }
 
 impl EngineCommand {
@@ -327,6 +358,7 @@ impl EngineCommand {
             b"uciok" => EngineCommand::Uciok,
             b"readyok" => EngineCommand::Readyok,
             b"bestmove" => EngineCommand::Bestmove,
+            b"info" => EngineCommand::Info,
             _ => return None,
         })
     }
