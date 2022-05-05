@@ -4,6 +4,7 @@ use std::{
     error::Error,
     io,
     net::SocketAddr,
+    ops::Not,
     path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -22,6 +23,8 @@ use clap::Parser;
 use either::{Left, Right};
 use engine::{ClientCommand, Engine};
 use rand::random;
+use serde::Serialize;
+use serde_with::{serde_as, CommaSeparator, DisplayFromStr, StringWithSeparator};
 use sysinfo::{RefreshKind, System, SystemExt};
 use tokio::sync::{Mutex, MutexGuard, Notify};
 
@@ -30,14 +33,25 @@ struct Opt {
     engine: PathBuf,
     #[clap(long, default_value = "127.0.0.1:9670")]
     bind: SocketAddr,
+    #[clap(long)]
+    name: Option<String>,
+    #[clap(long)]
+    promise_official_stockfish: bool,
 }
 
-#[derive(Debug)]
+#[serde_as]
+#[derive(Debug, Serialize)]
 struct RemoteSpec {
     url: String,
-    threads: usize,
-    hash: u64,
-    variants: Vec<()>,
+    name: String,
+    max_threads: usize,
+    max_hash: u64,
+    #[serde_as(as = "StringWithSeparator::<CommaSeparator, String>")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    variants: Vec<String>,
+    #[serde_as(as = "DisplayFromStr")]
+    #[serde(skip_serializing_if = "Not::not")]
+    official_stockfish: bool,
 }
 
 struct SharedEngine {
@@ -79,12 +93,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let secret_route = Box::leak(format!("/{:032x}", random::<u128>() & 0).into_boxed_str());
     let spec = RemoteSpec {
         url: format!("ws://{}{}", opt.bind, secret_route),
-        threads: thread::available_parallelism()?.into(),
-        hash: {
+        max_threads: thread::available_parallelism()?.into(),
+        max_hash: {
             let sys = System::new_with_specifics(RefreshKind::new().with_memory());
             (sys.available_memory() / 1024).next_power_of_two() / 2
         },
         variants: Vec::new(),
+        name: opt.name.unwrap_or_else(|| "remote-uci".to_owned()),
+        official_stockfish: opt.promise_official_stockfish,
     };
 
     for prefix in [
@@ -94,8 +110,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "http://l.org",
     ] {
         println!(
-            "{}/analysis/external?url={}&maxThreads={}&maxHash={}&name={}",
-            prefix, spec.url, spec.threads, spec.hash, "remote-uci"
+            "{}/analysis/external?{}",
+            prefix,
+            serde_urlencoded::to_string(&spec).expect("serialize spec"),
         );
     }
 
