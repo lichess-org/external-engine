@@ -5,6 +5,9 @@ use tokio::{
     process::{ChildStdin, ChildStdout, Command},
 };
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub struct Session(pub u64);
+
 #[derive(Eq, PartialEq)]
 pub enum ClientCommand {
     Uci,
@@ -76,7 +79,7 @@ impl Engine {
 }
 
 impl Engine {
-    pub async fn send(&mut self, line: &[u8]) -> io::Result<()> {
+    pub async fn send(&mut self, session: Session, line: &[u8]) -> io::Result<()> {
         if line.contains(&b'\n') {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -99,14 +102,14 @@ impl Engine {
             _ => (),
         }
 
-        log::info!("<< {}", String::from_utf8_lossy(line));
+        log::info!("{} << {}", session.0, String::from_utf8_lossy(line));
         self.stdin.write_all(line).await?;
         self.stdin.write_all(b"\r\n").await?;
         self.stdin.flush().await?;
         Ok(())
     }
 
-    pub async fn recv(&mut self) -> io::Result<Vec<u8>> {
+    pub async fn recv(&mut self, session: Session) -> io::Result<Vec<u8>> {
         let mut line = Vec::new();
         self.stdout.read_until(b'\n', &mut line).await?;
         if line.ends_with(b"\n") {
@@ -119,8 +122,8 @@ impl Engine {
         let command = EngineCommand::classify(&line);
 
         match command {
-            Some(EngineCommand::Info) => log::debug!(">> {}", String::from_utf8_lossy(&line)),
-            _ => log::info!(">> {}", String::from_utf8_lossy(&line)),
+            Some(EngineCommand::Info) => log::debug!("{} >> {}", session.0, String::from_utf8_lossy(&line)),
+            _ => log::info!("{} >> {}", session.0, String::from_utf8_lossy(&line)),
         }
 
         match command {
@@ -143,22 +146,22 @@ impl Engine {
         self.pending_uciok == 0 && self.pending_readyok == 0 && !self.searching
     }
 
-    pub async fn ensure_idle(&mut self) -> io::Result<()> {
+    pub async fn ensure_idle(&mut self, session: Session) -> io::Result<()> {
         while !self.is_idle() {
             if self.searching && self.pending_readyok < 1 {
-                self.send(b"stop").await?;
-                self.send(b"isready").await?;
+                self.send(session, b"stop").await?;
+                self.send(session, b"isready").await?;
             }
-            self.recv().await?;
+            self.recv(session).await?;
         }
         Ok(())
     }
 
-    pub async fn ensure_newgame(&mut self) -> io::Result<()> {
-        self.ensure_idle().await?;
-        self.send(b"ucinewgame").await?;
-        self.send(b"isready").await?;
-        self.ensure_idle().await?;
+    pub async fn ensure_newgame(&mut self, session: Session) -> io::Result<()> {
+        self.ensure_idle(session).await?;
+        self.send(session, b"ucinewgame").await?;
+        self.send(session, b"isready").await?;
+        self.ensure_idle(session).await?;
         Ok(())
     }
 }
