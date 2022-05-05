@@ -25,6 +25,7 @@ struct Opt {
 
 #[serde_as]
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct RemoteSpec {
     url: String,
     name: String,
