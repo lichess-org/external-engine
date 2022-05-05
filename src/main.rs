@@ -22,7 +22,7 @@ use clap::Parser;
 use either::{Left, Right};
 use rand::random;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Lines},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     process::{ChildStdin, ChildStdout, Command},
     sync::{Mutex, MutexGuard, Notify},
 };
@@ -44,10 +44,9 @@ struct Engine {
 struct EnginePipes {
     pending_uciok: u64,
     pending_readyok: u64,
-    pending_bestmove: u64,
-    pending_stops: u64,
+    searching: bool,
     stdin: BufWriter<ChildStdin>,
-    stdout: Lines<BufReader<ChildStdout>>,
+    stdout: BufReader<ChildStdout>,
 }
 
 impl Engine {
@@ -62,89 +61,77 @@ impl Engine {
             notify: Notify::new(),
             pipes: Mutex::new(EnginePipes {
                 pending_uciok: 0,
-                pending_bestmove: 0,
                 pending_readyok: 0,
-                pending_stops: 0,
+                searching: false,
                 stdin: BufWriter::new(process.stdin.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdin closed")
                 })?),
                 stdout: BufReader::new(process.stdout.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdout closed")
-                })?)
-                .lines(),
+                })?),
             }),
         })
     }
 }
 
 impl EnginePipes {
-    async fn write(&mut self, msg: UciIn) -> io::Result<()> {
-        match msg {
-            UciIn::Uci => self.pending_uciok += 1,
-            UciIn::Isready => self.pending_readyok += 1,
-            UciIn::Go(_) => self.pending_bestmove += 1,
-            UciIn::Stop => self.pending_stops += 1,
-            _ => (),
+    async fn write(&mut self, line: &[u8]) -> io::Result<()> {
+        if line.contains(&b'\n') {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "disallowed line feed"));
         }
 
-        log::info!("<< {}", msg);
-        self.stdin.write_all(msg.to_string().as_bytes()).await?;
-        self.stdin.write_all(b"\n").await?;
+        match ClientCommand::classify(line) {
+            Some(ClientCommand::Uci) => self.pending_uciok += 1,
+            Some(ClientCommand::Isready) => self.pending_readyok += 1,
+            Some(ClientCommand::Go) => {
+                if self.searching {
+                    return Err(io::Error::new(io::ErrorKind::InvalidData, "already searching"));
+                }
+                self.searching = true;
+            }
+            None => (),
+        }
+
+        log::info!("<< {:?}", line);
+        self.stdin.write_all(line).await?;
+        self.stdin.write_all(b"\r\n").await?;
         self.stdin.flush().await?;
         Ok(())
     }
 
-    async fn read(&mut self) -> io::Result<Option<UciOut>> {
-        let line = match self.stdout.next_line().await? {
-            Some(line) => line,
-            None => return Ok(None),
-        };
-
-        let msg = UciOut::from_str(&line)?;
-        log::debug!(">> {}", msg);
-
-        match msg {
-            UciOut::Uciok => {
-                self.pending_uciok = self.pending_uciok.checked_sub(1).unwrap_or_else(|| {
-                    log::warn!("unexpected uciok");
-                    0
-                })
-            }
-            UciOut::Readok => {
-                self.pending_readyok = self.pending_readyok.checked_sub(1).unwrap_or_else(|| {
-                    log::warn!("unexpected readyok");
-                    0
-                })
-            }
-            UciOut::Bestmove(_) => {
-                self.pending_stops = self.pending_stops.saturating_sub(1);
-                self.pending_bestmove = self.pending_bestmove.checked_sub(1).unwrap_or_else(|| {
-                    log::warn!("unexpected bestmove");
-                    0
-                })
-            }
-            _ => (),
+    async fn read(&mut self) -> io::Result<Vec<u8>> {
+        let mut line = Vec::new();
+        self.stdout.read_until(b'\n', &mut line).await?;
+        if line.ends_with(b"\n") {
+            line.pop();
         }
+        if line.ends_with(b"\r") {
+            line.pop();
+        }
+        log::debug!(">> {:?}", line);
 
-        Ok(Some(msg))
+        match EngineCommand::classify(&line) {
+            Some(EngineCommand::Uciok) => self.pending_uciok = self.pending_uciok.saturating_sub(1),
+            Some(EngineCommand::Readyok) => self.pending_readyok = self.pending_readyok.saturating_sub(1),
+            Some(EngineCommand::Bestmove) => self.searching = false,
+            None => (),
+        }
+        Ok(line)
     }
 
     fn is_idle(&self) -> bool {
-        self.pending_uciok == 0 && self.pending_readyok == 0 && self.pending_bestmove == 0
+        self.pending_uciok == 0 && self.pending_readyok == 0 && !self.searching
     }
 
-    async fn idle(&mut self) -> io::Result<()> {
+    async fn ensure_idle(&mut self) -> io::Result<()> {
         while !self.is_idle() {
-            if self.pending_bestmove > self.pending_stops {
-                self.write(UciIn::Stop).await?;
+            if self.searching {
+                self.write(b"stop").await?;
             }
+            self.write(b"isready").await?;
 
-            match self.read().await? {
-                Some(_) => (),
-                None => break,
-            }
+            self.read().await?;
         }
-
         Ok(())
     }
 }
@@ -319,128 +306,36 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
     }
 }
 
-enum UciIn {
+enum ClientCommand {
     Uci,
     Isready,
-    Setoption(String),
-    Ucinewgame,
-    Position(String),
-    Go(String),
-    Stop,
-    Ponderhit,
+    Go,
 }
 
-impl FromStr for UciIn {
-    type Err = io::Error;
-
-    fn from_str(s: &str) -> Result<UciIn, Self::Err> {
-        let mut parts = s.splitn(2, ' ');
-        Ok(match parts.next().unwrap() {
-            "uci" => UciIn::Uci,
-            "isready" => UciIn::Isready,
-            "ucinewgame" => UciIn::Ucinewgame,
-            "ponderhit" => UciIn::Ponderhit,
-            "stop" => UciIn::Stop,
-            "setoption" => UciIn::Setoption(
-                parts
-                    .next()
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid setopion"))?
-                    .to_owned(),
-            ),
-            "position" => UciIn::Position(
-                parts
-                    .next()
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid position"))?
-                    .to_owned(),
-            ),
-            "go" => UciIn::Go(
-                parts
-                    .next()
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid go"))?
-                    .to_owned(),
-            ),
-            _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "invalid uci input",
-                ))
-            }
+impl ClientCommand {
+    fn classify(line: &[u8]) -> Option<ClientCommand> {
+        Some(match line.split(|ch| *ch == b' ').next().unwrap() {
+            b"uci" => ClientCommand::Uci,
+            b"isready" => ClientCommand::Isready,
+            b"go" => ClientCommand::Go,
+            _ => return None,
         })
     }
 }
 
-impl fmt::Display for UciIn {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            UciIn::Uci => f.write_str("uci"),
-            UciIn::Isready => f.write_str("isready"),
-            UciIn::Setoption(args) => write!(f, "setoption {}", args),
-            UciIn::Ucinewgame => f.write_str("ucinewgame"),
-            UciIn::Position(args) => write!(f, "position {}", args),
-            UciIn::Go(args) => write!(f, "go {}", args),
-            UciIn::Stop => f.write_str("stop"),
-            UciIn::Ponderhit => f.write_str("ponderhit"),
-        }
-    }
-}
-
-enum UciOut {
-    Id(String),
+enum EngineCommand {
     Uciok,
-    Readok,
-    Bestmove(String),
-    Info(String),
-    Option(String),
-    Unkown,
+    Readyok,
+    Bestmove,
 }
 
-impl FromStr for UciOut {
-    type Err = io::Error;
-
-    fn from_str(s: &str) -> Result<UciOut, Self::Err> {
-        let mut parts = s.splitn(2, ' ');
-        Ok(match parts.next().unwrap() {
-            "id" => UciOut::Id(
-                parts
-                    .next()
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid id"))?
-                    .to_owned(),
-            ),
-            "uciok" => UciOut::Uciok,
-            "readyok" => UciOut::Readok,
-            "bestmove" => UciOut::Bestmove(
-                parts
-                    .next()
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid bestmove"))?
-                    .to_owned(),
-            ),
-            "info" => UciOut::Info(
-                parts
-                    .next()
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid info"))?
-                    .to_owned(),
-            ),
-            "option" => UciOut::Option(
-                parts
-                    .next()
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid option"))?
-                    .to_owned(),
-            ),
-            _ => UciOut::Unkown,
+impl EngineCommand {
+    fn classify(line: &[u8]) -> Option<EngineCommand> {
+        Some(match line.split(|ch| *ch == b' ').next().unwrap() {
+            b"uciok" => EngineCommand::Uciok,
+            b"readyok" => EngineCommand::Readyok,
+            b"bestmove" => EngineCommand::Bestmove,
+            _ => return None,
         })
-    }
-}
-
-impl fmt::Display for UciOut {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            UciOut::Id(args) => write!(f, "id {}", args),
-            UciOut::Uciok => f.write_str("uciok"),
-            UciOut::Readok => f.write_str("readyok"),
-            UciOut::Bestmove(args) => write!(f, "bestmove {}", args),
-            UciOut::Info(args) => write!(f, "info {}", args),
-            UciOut::Option(args) => write!(f, "option {}", args),
-            UciOut::Unkown => Ok(()),
-        }
     }
 }
