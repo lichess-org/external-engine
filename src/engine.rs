@@ -111,7 +111,9 @@ impl Engine {
 
     pub async fn recv(&mut self, session: Session) -> io::Result<Vec<u8>> {
         let mut line = Vec::new();
-        self.stdout.read_until(b'\n', &mut line).await?;
+        if self.stdout.read_until(b'\n', &mut line).await? == 0 {
+            return Err(io::Error::new(io::ErrorKind::BrokenPipe, "engine stdout closed"));
+        }
         if line.ends_with(b"\n") {
             line.pop();
         }
