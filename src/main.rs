@@ -238,7 +238,7 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
     loop {
         if let Some(mut locked_pipes) = pipes.take() {
             if session != engine.session.load(Ordering::SeqCst) {
-                log::warn!("ending session {} ...", session);
+                log::warn!("trying to end session {} ...", session);
                 if locked_pipes.searching {
                     locked_pipes.write(b"stop").await?;
                 }
