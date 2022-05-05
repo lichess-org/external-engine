@@ -1,7 +1,7 @@
 mod engine;
 mod ws;
 
-use std::{net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
+use std::{fmt, fs, io, net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
 
 use axum::{routing::get, Router};
 use clap::Parser;
@@ -39,6 +39,30 @@ struct ExternalSpec {
     official_stockfish: bool,
 }
 
+struct Key(u128);
+
+impl Key {
+    fn load() -> Key {
+        let dir = home::home_dir().expect("home dir");
+        let path = dir.join(".remote-uci-key");
+        match fs::read_to_string(&path) {
+            Ok(secret) => Key(u128::from_str_radix(&secret, 16).expect("parse ~/.remote-uci-key")),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                let secret = Key(random::<u128>());
+                fs::write(path, secret.to_string()).expect("write ~/.remote-uci-key");
+                secret
+            }
+            Err(err) => panic!("could not read ~/.remote-uci-key: {}", err),
+        }
+    }
+}
+
+impl fmt::Display for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:032x}", self.0)
+    }
+}
+
 fn available_memory() -> u64 {
     let sys = System::new_with_specifics(RefreshKind::new().with_memory());
     (sys.available_memory() / 1024).next_power_of_two() / 2
@@ -65,7 +89,7 @@ async fn main() {
 
     let engine = Arc::new(SharedEngine::new(engine));
 
-    let secret_route = Box::leak(format!("/{:032x}", random::<u128>() & 0).into_boxed_str());
+    let secret_route = Box::leak(format!("/{}", Key::load()).into_boxed_str());
     let spec = ExternalSpec {
         url: format!("ws://{}{}", opt.bind, secret_route),
         max_threads: thread::available_parallelism()
