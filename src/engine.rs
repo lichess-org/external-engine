@@ -112,7 +112,10 @@ impl Engine {
     pub async fn recv(&mut self, session: Session) -> io::Result<Vec<u8>> {
         let mut line = Vec::new();
         if self.stdout.read_until(b'\n', &mut line).await? == 0 {
-            return Err(io::Error::new(io::ErrorKind::BrokenPipe, "engine stdout closed"));
+            return Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "engine stdout closed",
+            ));
         }
         if line.ends_with(b"\n") {
             line.pop();
@@ -124,7 +127,9 @@ impl Engine {
         let command = EngineCommand::classify(&line);
 
         match command {
-            Some(EngineCommand::Info) => log::debug!("{} >> {}", session.0, String::from_utf8_lossy(&line)),
+            Some(EngineCommand::Info) => {
+                log::debug!("{} >> {}", session.0, String::from_utf8_lossy(&line))
+            }
             _ => log::info!("{} >> {}", session.0, String::from_utf8_lossy(&line)),
         }
 

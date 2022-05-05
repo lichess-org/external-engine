@@ -39,6 +39,11 @@ struct ExternalSpec {
     official_stockfish: bool,
 }
 
+fn available_memory() -> u64 {
+    let sys = System::new_with_specifics(RefreshKind::new().with_memory());
+    (sys.available_memory() / 1024).next_power_of_two() / 2
+}
+
 #[tokio::main]
 async fn main() {
     env_logger::Builder::from_env(
@@ -66,10 +71,7 @@ async fn main() {
         max_threads: thread::available_parallelism()
             .expect("available threads")
             .into(),
-        max_hash: {
-            let sys = System::new_with_specifics(RefreshKind::new().with_memory());
-            (sys.available_memory() / 1024).next_power_of_two() / 2
-        },
+        max_hash: available_memory(),
         variants: Vec::new(),
         name: opt.name.unwrap_or_else(|| "remote-uci".to_owned()),
         official_stockfish: opt.promise_official_stockfish,
