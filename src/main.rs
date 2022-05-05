@@ -11,6 +11,7 @@ use std::{
         Arc,
     },
     thread,
+    time::Duration,
 };
 
 use axum::{
@@ -25,7 +26,10 @@ use rand::random;
 use serde::Serialize;
 use serde_with::{serde_as, CommaSeparator, DisplayFromStr, StringWithSeparator};
 use sysinfo::{RefreshKind, System, SystemExt};
-use tokio::sync::{Mutex, MutexGuard, Notify};
+use tokio::{
+    sync::{Mutex, MutexGuard, Notify},
+    time::{interval, MissedTickBehavior},
+};
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -145,6 +149,7 @@ enum Event {
     Socket(Option<Result<Message, axum::Error>>),
     Engine(io::Result<Vec<u8>>),
     CheckSession,
+    Tick,
 }
 
 async fn handle_socket_inner(
@@ -153,6 +158,11 @@ async fn handle_socket_inner(
 ) -> io::Result<()> {
     let mut locked_engine: Option<MutexGuard<Engine>> = None;
     let mut session = 0;
+
+    let mut missed_pong = false;
+    let mut timeout = interval(Duration::from_secs(10));
+    timeout.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    timeout.reset();
 
     loop {
         // Try to end session if another session wants to take over.
@@ -180,14 +190,34 @@ async fn handle_socket_inner(
                 engine_in = socket.recv() => Event::Socket(engine_in),
                 engine_out = engine.recv() => Event::Engine(engine_out),
                 _ = shared_engine.notify.notified() => Event::CheckSession,
+                _ = timeout.tick() => Event::Tick,
             }
         } else {
-            Event::Socket(socket.recv().await)
+            tokio::select! {
+                engine_in = socket.recv() => Event::Socket(engine_in),
+                _ = timeout.tick() => Event::Tick,
+            }
         };
 
         // Handle event.
         match event {
             Event::CheckSession => continue,
+
+            Event::Tick => {
+                if missed_pong {
+                    log::error!("ping timeout in session {}", session);
+                    if let Some(ref mut engine) = locked_engine {
+                        engine.ensure_idle().await?;
+                    }
+                    break Ok(());
+                } else {
+                    socket
+                        .send(Message::Ping(Vec::new()))
+                        .await
+                        .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?;
+                    missed_pong = true;
+                }
+            }
 
             Event::Socket(Some(Ok(Message::Text(text)))) => {
                 let mut engine = match locked_engine.take() {
@@ -213,7 +243,7 @@ async fn handle_socket_inner(
                 engine.send(text.as_bytes()).await?;
                 locked_engine = Some(engine);
             }
-            Event::Socket(Some(Ok(Message::Pong(_)))) => (),
+            Event::Socket(Some(Ok(Message::Pong(_)))) => missed_pong = false,
             Event::Socket(Some(Ok(Message::Ping(data)))) => socket
                 .send(Message::Pong(data))
                 .await
