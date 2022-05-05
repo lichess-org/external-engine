@@ -1,7 +1,7 @@
 mod engine;
 mod ws;
 
-use std::{fmt, fs, io, net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
+use std::{cmp::min, net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
 
 use axum::{routing::get, Router};
 use clap::Parser;
@@ -19,6 +19,12 @@ struct Opt {
     bind: SocketAddr,
     #[clap(long)]
     name: Option<String>,
+    #[clap(long)]
+    max_threads: Option<usize>,
+    #[clap(long)]
+    max_hash: Option<u64>,
+    #[clap(long)]
+    secret_path: Option<String>,
     #[clap(long, hide = true)]
     promise_official_stockfish: bool,
 }
@@ -37,30 +43,6 @@ struct ExternalSpec {
     #[serde_as(as = "DisplayFromStr")]
     #[serde(skip_serializing_if = "Not::not")]
     official_stockfish: bool,
-}
-
-struct Key(u128);
-
-impl Key {
-    fn load() -> Key {
-        let dir = home::home_dir().expect("home dir");
-        let path = dir.join(".remote-uci-key");
-        match fs::read_to_string(&path) {
-            Ok(secret) => Key(u128::from_str_radix(&secret, 16).expect("parse ~/.remote-uci-key")),
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                let secret = Key(random::<u128>());
-                fs::write(path, secret.to_string()).expect("write ~/.remote-uci-key");
-                secret
-            }
-            Err(err) => panic!("could not read ~/.remote-uci-key: {}", err),
-        }
-    }
-}
-
-impl fmt::Display for Key {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:032x}", self.0)
-    }
 }
 
 fn available_memory() -> u64 {
@@ -89,13 +71,23 @@ async fn main() {
 
     let engine = Arc::new(SharedEngine::new(engine));
 
-    let secret_route = Box::leak(format!("/{}", Key::load()).into_boxed_str());
+    let secret_route = Box::leak(
+        format!(
+            "/{}",
+            opt.secret_path
+                .unwrap_or_else(|| format!("{:032x}", random::<u128>()))
+        )
+        .into_boxed_str(),
+    );
     let spec = ExternalSpec {
         url: format!("ws://{}{}", opt.bind, secret_route),
-        max_threads: thread::available_parallelism()
-            .expect("available threads")
-            .into(),
-        max_hash: available_memory(),
+        max_threads: min(
+            opt.max_threads.unwrap_or(usize::MAX),
+            thread::available_parallelism()
+                .expect("available threads")
+                .into(),
+        ),
+        max_hash: min(opt.max_hash.unwrap_or(u64::MAX), available_memory()),
         variants: Vec::new(),
         name: opt.name.unwrap_or_else(|| "remote-uci".to_owned()),
         official_stockfish: opt.promise_official_stockfish,
