@@ -1,7 +1,7 @@
 mod engine;
 mod ws;
 
-use std::{error::Error, net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
+use std::{net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
 
 use axum::{routing::get, Router};
 use clap::Parser;
@@ -26,7 +26,7 @@ struct Opt {
 #[serde_as]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RemoteSpec {
+struct ExternalSpec {
     url: String,
     name: String,
     max_threads: usize,
@@ -40,10 +40,11 @@ struct RemoteSpec {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() {
     env_logger::Builder::from_env(
         env_logger::Env::new()
             .filter("REMOTE_UCI_LOG")
+            .default_filter_or("info")
             .write_style("REMOTE_UCI_LOG_STYLE"),
     )
     .format_target(false)
@@ -52,7 +53,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let opt = Opt::parse();
 
-    let engine = Engine::new(opt.engine).await?;
+    let engine = Engine::new(opt.engine).await.expect("spawn engine");
 
     //let mut locked_pipes = engine.pipes.lock().await;
     //drop(locked_pipes);
@@ -60,9 +61,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let engine = Arc::new(SharedEngine::new(engine));
 
     let secret_route = Box::leak(format!("/{:032x}", random::<u128>() & 0).into_boxed_str());
-    let spec = RemoteSpec {
+    let spec = ExternalSpec {
         url: format!("ws://{}{}", opt.bind, secret_route),
-        max_threads: thread::available_parallelism()?.into(),
+        max_threads: thread::available_parallelism()
+            .expect("available threads")
+            .into(),
         max_hash: {
             let sys = System::new_with_specifics(RefreshKind::new().with_memory());
             (sys.available_memory() / 1024).next_power_of_two() / 2
@@ -72,18 +75,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         official_stockfish: opt.promise_official_stockfish,
     };
 
-    for prefix in [
-        "https://lichess.org",
-        "https://lichess.dev",
-        "http://localhost:9663",
-        "http://l.org",
-    ] {
-        println!(
-            "{}/analysis/external?{}",
-            prefix,
-            serde_urlencoded::to_string(&spec).expect("serialize spec"),
-        );
-    }
+    println!(
+        "https://lichess.org/analysis/external?{}",
+        serde_urlencoded::to_string(&spec).expect("serialize spec"),
+    );
 
     let app = Router::new().route(
         secret_route,
@@ -95,7 +90,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     axum::Server::bind(&opt.bind)
         .serve(app.into_make_service())
-        .await?;
-
-    Ok(())
+        .await
+        .expect("bind");
 }
