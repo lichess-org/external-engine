@@ -20,7 +20,6 @@ use axum::{
     Router,
 };
 use clap::Parser;
-use either::{Left, Right};
 use engine::{ClientCommand, Engine};
 use rand::random;
 use serde::Serialize;
@@ -35,7 +34,7 @@ struct Opt {
     bind: SocketAddr,
     #[clap(long)]
     name: Option<String>,
-    #[clap(long)]
+    #[clap(long, hide = true)]
     promise_official_stockfish: bool,
 }
 
@@ -142,6 +141,12 @@ async fn handle_socket(shared_engine: Arc<SharedEngine>, mut socket: WebSocket) 
     let _ = socket.send(Message::Close(None)).await;
 }
 
+enum Event {
+    Socket(Option<Result<Message, axum::Error>>),
+    Engine(io::Result<Vec<u8>>),
+    CheckSession,
+}
+
 async fn handle_socket_inner(
     shared_engine: &SharedEngine,
     socket: &mut WebSocket,
@@ -172,17 +177,19 @@ async fn handle_socket_inner(
         // Select next event to handle.
         let event = if let Some(ref mut engine) = locked_engine {
             tokio::select! {
-                engine_in = socket.recv() => Left(engine_in),
-                engine_out = engine.recv() => Right(engine_out),
-                _ = shared_engine.notify.notified() => continue,
+                engine_in = socket.recv() => Event::Socket(engine_in),
+                engine_out = engine.recv() => Event::Engine(engine_out),
+                _ = shared_engine.notify.notified() => Event::CheckSession,
             }
         } else {
-            Left(socket.recv().await)
+            Event::Socket(socket.recv().await)
         };
 
         // Handle event.
         match event {
-            Left(Some(Ok(Message::Text(text)))) => {
+            Event::CheckSession => continue,
+
+            Event::Socket(Some(Ok(Message::Text(text)))) => {
                 let mut engine = match locked_engine.take() {
                     Some(engine) => engine,
                     None if ClientCommand::classify(text.as_bytes())
@@ -206,12 +213,12 @@ async fn handle_socket_inner(
                 engine.send(text.as_bytes()).await?;
                 locked_engine = Some(engine);
             }
-            Left(Some(Ok(Message::Pong(_)))) => (),
-            Left(Some(Ok(Message::Ping(data)))) => socket
+            Event::Socket(Some(Ok(Message::Pong(_)))) => (),
+            Event::Socket(Some(Ok(Message::Ping(data)))) => socket
                 .send(Message::Pong(data))
                 .await
                 .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?,
-            Left(Some(Ok(Message::Binary(_)))) => {
+            Event::Socket(Some(Ok(Message::Binary(_)))) => {
                 if let Some(ref mut engine) = locked_engine {
                     engine.ensure_idle().await?;
                 }
@@ -220,20 +227,20 @@ async fn handle_socket_inner(
                     "binary messages not supported",
                 ));
             }
-            Left(None | Some(Ok(Message::Close(_)))) => {
+            Event::Socket(None | Some(Ok(Message::Close(_)))) => {
                 if let Some(ref mut engine) = locked_engine {
                     engine.ensure_idle().await?;
                 }
                 break Ok(());
             }
-            Left(Some(Err(err))) => {
+            Event::Socket(Some(Err(err))) => {
                 if let Some(ref mut engine) = locked_engine {
                     engine.ensure_idle().await?;
                 }
                 return Err(io::Error::new(io::ErrorKind::BrokenPipe, err));
             }
 
-            Right(Ok(msg)) => {
+            Event::Engine(Ok(msg)) => {
                 socket
                     .send(Message::Text(String::from_utf8(msg).map_err(|err| {
                         io::Error::new(io::ErrorKind::InvalidData, err)
@@ -241,7 +248,7 @@ async fn handle_socket_inner(
                     .await
                     .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?;
             }
-            Right(Err(err)) => return Err(err),
+            Event::Engine(Err(err)) => return Err(err),
         }
     }
 }

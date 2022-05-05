@@ -813,7 +813,6 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
- "either",
  "env_logger",
  "log",
  "rand",
