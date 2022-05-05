@@ -1,10 +1,9 @@
 use std::{
     error::Error,
-    fmt, io,
+    io,
     net::SocketAddr,
     path::PathBuf,
     process::Stdio,
-    str::FromStr,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -92,7 +91,7 @@ impl EnginePipes {
             None => (),
         }
 
-        log::info!("<< {:?}", line);
+        log::info!("<< {}", String::from_utf8_lossy(line));
         self.stdin.write_all(line).await?;
         self.stdin.write_all(b"\r\n").await?;
         self.stdin.flush().await?;
@@ -108,7 +107,7 @@ impl EnginePipes {
         if line.ends_with(b"\r") {
             line.pop();
         }
-        log::debug!(">> {:?}", line);
+        log::debug!(">> {}", String::from_utf8_lossy(&line));
 
         match EngineCommand::classify(&line) {
             Some(EngineCommand::Uciok) => self.pending_uciok = self.pending_uciok.saturating_sub(1),
@@ -125,13 +124,20 @@ impl EnginePipes {
 
     async fn ensure_idle(&mut self) -> io::Result<()> {
         while !self.is_idle() {
-            if self.searching {
+            if self.searching && self.pending_readyok < 1 {
                 self.write(b"stop").await?;
+                self.write(b"isready").await?;
             }
-            self.write(b"isready").await?;
-
             self.read().await?;
         }
+        Ok(())
+    }
+
+    async fn ensure_newgame(&mut self) -> io::Result<()> {
+        self.ensure_idle().await?;
+        self.write(b"ucinewgame").await?;
+        self.write(b"isready").await?;
+        self.ensure_idle().await?;
         Ok(())
     }
 }
@@ -159,10 +165,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let engine = Engine::new(opt.engine).await?;
 
-    let mut locked_pipes = engine.pipes.lock().await;
-    locked_pipes.write(UciIn::Uci).await?;
-    locked_pipes.idle().await?;
-    drop(locked_pipes);
+    //let mut locked_pipes = engine.pipes.lock().await;
+    //drop(locked_pipes);
 
     let engine = Arc::new(engine);
 
@@ -202,7 +206,7 @@ async fn handler(engine: Arc<Engine>, ws: WebSocketUpgrade) -> impl IntoResponse
 
 async fn handle_socket(engine: Arc<Engine>, mut socket: WebSocket) {
     if let Err(err) = handle_socket_inner(&engine, &mut socket).await {
-        log::warn!("socket handler error: {}", err);
+        log::error!("socket handler error: {}", err);
     }
     let _ = socket.send(Message::Close(None)).await;
 }
@@ -214,14 +218,14 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
     loop {
         if let Some(mut locked_pipes) = pipes.take() {
             if session != engine.session.load(Ordering::SeqCst) {
-                log::info!("ending session ...");
-                if !locked_pipes.is_idle() {
-                    if locked_pipes.pending_bestmove > locked_pipes.pending_stops {
-                        locked_pipes.write(UciIn::Stop).await?;
-                    }
-                    pipes = Some(locked_pipes);
+                log::warn!("ending session {} ...", session);
+                if locked_pipes.searching {
+                    locked_pipes.write(b"stop").await?;
+                }
+                if locked_pipes.is_idle() {
+                    log::warn!("session {} ended", session);
                 } else {
-                    log::info!("session ended");
+                    pipes = Some(locked_pipes);
                 }
             } else {
                 pipes = Some(locked_pipes);
@@ -240,25 +244,20 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
 
         match event {
             Left(Some(Ok(Message::Text(text)))) => {
-                let msg = UciIn::from_str(&text)?;
-
                 let mut locked_pipes = match pipes.take() {
                     Some(locked_pipes) => locked_pipes,
                     None => {
-                        log::info!("starting or restarting session ...");
                         session = engine.session.fetch_add(1, Ordering::SeqCst) + 1;
+                        log::warn!("starting or restarting session {} ...", session);
                         engine.notify.notify_one();
                         let mut locked_pipes = engine.pipes.lock().await;
-                        log::info!("new sesstion started.");
-                        locked_pipes.idle().await?;
-                        locked_pipes.write(UciIn::Ucinewgame).await?;
-                        locked_pipes.write(UciIn::Isready).await?;
-                        locked_pipes.idle().await?;
+                        log::warn!("new session {} started", session);
+                        locked_pipes.ensure_newgame().await?;
                         locked_pipes
                     }
                 };
 
-                locked_pipes.write(msg).await?;
+                locked_pipes.write(text.as_bytes()).await?;
                 pipes = Some(locked_pipes);
             }
             Left(Some(Ok(Message::Pong(_)))) => (),
@@ -268,7 +267,7 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
                 .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?,
             Left(Some(Ok(Message::Binary(_)))) => {
                 if let Some(ref mut locked_pipes) = pipes {
-                    locked_pipes.idle().await?;
+                    locked_pipes.ensure_idle().await?;
                 }
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -277,29 +276,22 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
             }
             Left(None | Some(Ok(Message::Close(_)))) => {
                 if let Some(ref mut locked_pipes) = pipes {
-                    locked_pipes.idle().await?;
+                    locked_pipes.ensure_idle().await?;
                 }
                 break Ok(());
             }
             Left(Some(Err(err))) => {
                 if let Some(ref mut locked_pipes) = pipes {
-                    locked_pipes.idle().await?;
+                    locked_pipes.ensure_idle().await?;
                 }
                 return Err(io::Error::new(io::ErrorKind::BrokenPipe, err));
             }
 
-            Right(Ok(Some(UciOut::Unkown))) => (),
-            Right(Ok(Some(msg))) => {
+            Right(Ok(msg)) => {
                 socket
-                    .send(Message::Text(msg.to_string()))
+                    .send(Message::Text(String::from_utf8(msg).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?))
                     .await
                     .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?;
-            }
-            Right(Ok(None)) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "engine stdout closed unexpectedly",
-                ))
             }
             Right(Err(err)) => return Err(err),
         }
