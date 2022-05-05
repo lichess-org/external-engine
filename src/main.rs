@@ -1,9 +1,10 @@
+mod engine;
+
 use std::{
     error::Error,
     io,
     net::SocketAddr,
     path::PathBuf,
-    process::Stdio,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -19,13 +20,10 @@ use axum::{
 };
 use clap::Parser;
 use either::{Left, Right};
+use engine::{ClientCommand, Engine};
 use rand::random;
 use sysinfo::{RefreshKind, System, SystemExt};
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
-    process::{ChildStdin, ChildStdout, Command},
-    sync::{Mutex, MutexGuard, Notify},
-};
+use tokio::sync::{Mutex, MutexGuard, Notify};
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -34,132 +32,28 @@ struct Opt {
     bind: SocketAddr,
 }
 
-struct Engine {
-    session: AtomicU64,
-    notify: Notify,
-    pipes: Mutex<EnginePipes>,
-}
-
-struct EnginePipes {
-    pending_uciok: u64,
-    pending_readyok: u64,
-    searching: bool,
-    stdin: BufWriter<ChildStdin>,
-    stdout: BufReader<ChildStdout>,
-}
-
-impl Engine {
-    async fn new(path: PathBuf) -> io::Result<Engine> {
-        let mut process = Command::new(path)
-            .stdout(Stdio::piped())
-            .stdin(Stdio::piped())
-            .spawn()?;
-
-        Ok(Engine {
-            session: AtomicU64::new(0),
-            notify: Notify::new(),
-            pipes: Mutex::new(EnginePipes {
-                pending_uciok: 0,
-                pending_readyok: 0,
-                searching: false,
-                stdin: BufWriter::new(process.stdin.take().ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::BrokenPipe, "engine stdin closed")
-                })?),
-                stdout: BufReader::new(process.stdout.take().ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::BrokenPipe, "engine stdout closed")
-                })?),
-            }),
-        })
-    }
-}
-
-impl EnginePipes {
-    async fn write(&mut self, line: &[u8]) -> io::Result<()> {
-        if line.contains(&b'\n') {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "disallowed line feed",
-            ));
-        }
-
-        match ClientCommand::classify(line) {
-            Some(ClientCommand::Uci) => self.pending_uciok += 1,
-            Some(ClientCommand::Isready) => self.pending_readyok += 1,
-            Some(ClientCommand::Go) => {
-                if self.searching {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "already searching",
-                    ));
-                }
-                self.searching = true;
-            }
-            _ => (),
-        }
-
-        log::info!("<< {}", String::from_utf8_lossy(line));
-        self.stdin.write_all(line).await?;
-        self.stdin.write_all(b"\r\n").await?;
-        self.stdin.flush().await?;
-        Ok(())
-    }
-
-    async fn read(&mut self) -> io::Result<Vec<u8>> {
-        let mut line = Vec::new();
-        self.stdout.read_until(b'\n', &mut line).await?;
-        if line.ends_with(b"\n") {
-            line.pop();
-        }
-        if line.ends_with(b"\r") {
-            line.pop();
-        }
-
-        match EngineCommand::classify(&line) {
-            Some(EngineCommand::Info) => log::debug!(">> {}", String::from_utf8_lossy(&line)),
-            _ => log::info!(">> {}", String::from_utf8_lossy(&line)),
-        }
-
-        match EngineCommand::classify(&line) {
-            Some(EngineCommand::Uciok) => self.pending_uciok = self.pending_uciok.saturating_sub(1),
-            Some(EngineCommand::Readyok) => {
-                self.pending_readyok = self.pending_readyok.saturating_sub(1)
-            }
-            Some(EngineCommand::Bestmove) => self.searching = false,
-            _ => (),
-        }
-        Ok(line)
-    }
-
-    fn is_idle(&self) -> bool {
-        self.pending_uciok == 0 && self.pending_readyok == 0 && !self.searching
-    }
-
-    async fn ensure_idle(&mut self) -> io::Result<()> {
-        while !self.is_idle() {
-            if self.searching && self.pending_readyok < 1 {
-                self.write(b"stop").await?;
-                self.write(b"isready").await?;
-            }
-            self.read().await?;
-        }
-        Ok(())
-    }
-
-    async fn ensure_newgame(&mut self) -> io::Result<()> {
-        self.ensure_idle().await?;
-        self.write(b"ucinewgame").await?;
-        self.write(b"isready").await?;
-        self.ensure_idle().await?;
-        Ok(())
-    }
-}
-
 #[derive(Debug)]
 struct RemoteSpec {
     url: String,
     threads: usize,
     hash: u64,
     variants: Vec<()>,
+}
+
+struct SharedEngine {
+    session: AtomicU64,
+    notify: Notify,
+    engine: Mutex<Engine>,
+}
+
+impl SharedEngine {
+    fn new(engine: Engine) -> SharedEngine {
+        SharedEngine {
+            session: AtomicU64::new(0),
+            notify: Notify::new(),
+            engine: Mutex::new(engine),
+        }
+    }
 }
 
 #[tokio::main]
@@ -180,7 +74,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //let mut locked_pipes = engine.pipes.lock().await;
     //drop(locked_pipes);
 
-    let engine = Arc::new(engine);
+    let engine = Arc::new(SharedEngine::new(engine));
 
     let secret_route = Box::leak(format!("/{:032x}", random::<u128>() & 0).into_boxed_str());
     let spec = RemoteSpec {
@@ -220,70 +114,80 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn handler(engine: Arc<Engine>, ws: WebSocketUpgrade) -> impl IntoResponse {
+async fn handler(engine: Arc<SharedEngine>, ws: WebSocketUpgrade) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(engine, socket))
 }
 
-async fn handle_socket(engine: Arc<Engine>, mut socket: WebSocket) {
-    if let Err(err) = handle_socket_inner(&engine, &mut socket).await {
+async fn handle_socket(shared_engine: Arc<SharedEngine>, mut socket: WebSocket) {
+    if let Err(err) = handle_socket_inner(&shared_engine, &mut socket).await {
         log::error!("socket handler error: {}", err);
     }
     let _ = socket.send(Message::Close(None)).await;
 }
 
-async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Result<()> {
-    let mut pipes: Option<MutexGuard<EnginePipes>> = None;
+async fn handle_socket_inner(
+    shared_engine: &SharedEngine,
+    socket: &mut WebSocket,
+) -> io::Result<()> {
+    let mut locked_engine: Option<MutexGuard<Engine>> = None;
     let mut session = 0;
 
     loop {
-        if let Some(mut locked_pipes) = pipes.take() {
-            if session != engine.session.load(Ordering::SeqCst) {
+        // Try to end session if another session wants to take over.
+        // We send a stop command, and keep the previous session the engine
+        // is actually idle.
+        if let Some(mut engine) = locked_engine.take() {
+            if session != shared_engine.session.load(Ordering::SeqCst) {
                 log::warn!("trying to end session {} ...", session);
-                if locked_pipes.searching {
-                    locked_pipes.write(b"stop").await?;
+                if engine.is_searching() {
+                    engine.send(b"stop").await?;
                 }
-                if locked_pipes.is_idle() {
+                if engine.is_idle() {
                     log::warn!("session {} ended", session);
                 } else {
-                    pipes = Some(locked_pipes);
+                    locked_engine = Some(engine);
                 }
             } else {
-                pipes = Some(locked_pipes);
+                locked_engine = Some(engine);
             }
         }
 
-        let event = if let Some(ref mut locked_pipes) = pipes {
+        // Select next event to handle.
+        let event = if let Some(ref mut engine) = locked_engine {
             tokio::select! {
                 engine_in = socket.recv() => Left(engine_in),
-                engine_out = locked_pipes.read() => Right(engine_out),
-                _ = engine.notify.notified() => continue,
+                engine_out = engine.recv() => Right(engine_out),
+                _ = shared_engine.notify.notified() => continue,
             }
         } else {
             Left(socket.recv().await)
         };
 
+        // Handle event.
         match event {
             Left(Some(Ok(Message::Text(text)))) => {
-                let mut locked_pipes = match pipes.take() {
-                    Some(locked_pipes) => locked_pipes,
+                let mut engine = match locked_engine.take() {
+                    Some(engine) => engine,
                     None if ClientCommand::classify(text.as_bytes())
                         == Some(ClientCommand::Stop) =>
                     {
-                        continue
+                        // No need to make a new session just to send a stop
+                        // command.
+                        continue;
                     }
                     None => {
-                        session = engine.session.fetch_add(1, Ordering::SeqCst) + 1;
+                        session = shared_engine.session.fetch_add(1, Ordering::SeqCst) + 1;
                         log::warn!("starting or restarting session {} ...", session);
-                        engine.notify.notify_one();
-                        let mut locked_pipes = engine.pipes.lock().await;
+                        shared_engine.notify.notify_one();
+                        let mut engine = shared_engine.engine.lock().await;
                         log::warn!("new session {} started", session);
-                        locked_pipes.ensure_newgame().await?;
-                        locked_pipes
+                        engine.ensure_newgame().await?;
+                        engine
                     }
                 };
 
-                locked_pipes.write(text.as_bytes()).await?;
-                pipes = Some(locked_pipes);
+                engine.send(text.as_bytes()).await?;
+                locked_engine = Some(engine);
             }
             Left(Some(Ok(Message::Pong(_)))) => (),
             Left(Some(Ok(Message::Ping(data)))) => socket
@@ -291,8 +195,8 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
                 .await
                 .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?,
             Left(Some(Ok(Message::Binary(_)))) => {
-                if let Some(ref mut locked_pipes) = pipes {
-                    locked_pipes.ensure_idle().await?;
+                if let Some(ref mut engine) = locked_engine {
+                    engine.ensure_idle().await?;
                 }
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -300,14 +204,14 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
                 ));
             }
             Left(None | Some(Ok(Message::Close(_)))) => {
-                if let Some(ref mut locked_pipes) = pipes {
-                    locked_pipes.ensure_idle().await?;
+                if let Some(ref mut engine) = locked_engine {
+                    engine.ensure_idle().await?;
                 }
                 break Ok(());
             }
             Left(Some(Err(err))) => {
-                if let Some(ref mut locked_pipes) = pipes {
-                    locked_pipes.ensure_idle().await?;
+                if let Some(ref mut engine) = locked_engine {
+                    engine.ensure_idle().await?;
                 }
                 return Err(io::Error::new(io::ErrorKind::BrokenPipe, err));
             }
@@ -322,44 +226,5 @@ async fn handle_socket_inner(engine: &Engine, socket: &mut WebSocket) -> io::Res
             }
             Right(Err(err)) => return Err(err),
         }
-    }
-}
-
-#[derive(Eq, PartialEq)]
-enum ClientCommand {
-    Uci,
-    Isready,
-    Go,
-    Stop,
-}
-
-impl ClientCommand {
-    fn classify(line: &[u8]) -> Option<ClientCommand> {
-        Some(match line.split(|ch| *ch == b' ').next().unwrap() {
-            b"uci" => ClientCommand::Uci,
-            b"isready" => ClientCommand::Isready,
-            b"go" => ClientCommand::Go,
-            b"stop" => ClientCommand::Stop,
-            _ => return None,
-        })
-    }
-}
-
-enum EngineCommand {
-    Uciok,
-    Readyok,
-    Bestmove,
-    Info,
-}
-
-impl EngineCommand {
-    fn classify(line: &[u8]) -> Option<EngineCommand> {
-        Some(match line.split(|ch| *ch == b' ').next().unwrap() {
-            b"uciok" => EngineCommand::Uciok,
-            b"readyok" => EngineCommand::Readyok,
-            b"bestmove" => EngineCommand::Bestmove,
-            b"info" => EngineCommand::Info,
-            _ => return None,
-        })
     }
 }
