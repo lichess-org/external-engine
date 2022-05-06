@@ -10,7 +10,10 @@ use serde::Serialize;
 use serde_with::{serde_as, CommaSeparator, DisplayFromStr, StringWithSeparator};
 use sysinfo::{RefreshKind, System, SystemExt};
 
-use crate::{engine::Engine, ws::SharedEngine};
+use crate::{
+    engine::Engine,
+    ws::{Secret, SharedEngine},
+};
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -24,7 +27,7 @@ struct Opt {
     #[clap(long)]
     max_hash: Option<u64>,
     #[clap(long)]
-    secret_path: Option<String>,
+    secret: Option<String>,
     #[clap(long, hide = true)]
     promise_official_stockfish: bool,
 }
@@ -32,8 +35,9 @@ struct Opt {
 #[serde_as]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ExternalSpec {
+struct ExternalWorkerOpts {
     url: String,
+    secret: Secret,
     name: String,
     max_threads: usize,
     max_hash: u64,
@@ -71,16 +75,14 @@ async fn main() {
 
     let engine = Arc::new(SharedEngine::new(engine));
 
-    let secret_route = Box::leak(
-        format!(
-            "/{}",
-            opt.secret_path
-                .unwrap_or_else(|| format!("{:032x}", random::<u128>()))
-        )
-        .into_boxed_str(),
+    let secret = Secret(
+        opt.secret
+            .unwrap_or_else(|| format!("{:032x}", random::<u128>())),
     );
-    let spec = ExternalSpec {
-        url: format!("ws://{}{}", opt.bind, secret_route),
+
+    let spec = ExternalWorkerOpts {
+        url: format!("ws://{}/", opt.bind),
+        secret: secret.clone(),
         max_threads: min(
             opt.max_threads.unwrap_or(usize::MAX),
             thread::available_parallelism()
@@ -99,10 +101,11 @@ async fn main() {
     );
 
     let app = Router::new().route(
-        secret_route,
+        "/",
         get({
             let engine = Arc::clone(&engine);
-            move |socket| ws::handler(engine, socket)
+            let secret = secret.clone();
+            move |params, socket| ws::handler(engine, secret, params, socket)
         }),
     );
 

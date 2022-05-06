@@ -1,5 +1,6 @@
 use std::{
     io,
+    iter::zip,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -8,9 +9,14 @@ use std::{
 };
 
 use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Query,
+    },
+    http::StatusCode,
     response::IntoResponse,
 };
+use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{Mutex, MutexGuard, Notify},
     time::{interval, MissedTickBehavior},
@@ -34,8 +40,35 @@ impl SharedEngine {
     }
 }
 
-pub async fn handler(engine: Arc<SharedEngine>, ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(engine, socket))
+#[derive(Eq, Serialize, Deserialize, Clone, Debug)]
+pub struct Secret(pub String);
+
+#[derive(Deserialize)]
+pub struct Params {
+    secret: Secret,
+    #[serde(rename = "session")]
+    _session: String,
+}
+
+impl PartialEq for Secret {
+    fn eq(&self, other: &Self) -> bool {
+        // Best effort attempt at constant time comparison
+        self.0.len() == other.0.len()
+            && zip(self.0.as_bytes(), other.0.as_bytes()).fold(0, |acc, (l, r)| acc | (l ^ r)) == 0
+    }
+}
+
+pub async fn handler(
+    engine: Arc<SharedEngine>,
+    secret: Secret,
+    Query(params): Query<Params>,
+    ws: WebSocketUpgrade,
+) -> Result<impl IntoResponse, StatusCode> {
+    if secret == params.secret {
+        Ok(ws.on_upgrade(move |socket| handle_socket(engine, socket)))
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
 }
 
 async fn handle_socket(shared_engine: Arc<SharedEngine>, mut socket: WebSocket) {
