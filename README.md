@@ -43,23 +43,23 @@ https://lichess.org/analysis/external
 
 with the following query parameters:
 
-name | default | example | description
+| name | default | example | description |
 === | === | ===
-`url` | *required* | ws://localhost:9670/ | URL of the provider server. External engine registrations are stored in local storage, so this may refer to `localhost` without breaking on other devices.
-`secret` | *required* | | A secret token that the client should include in every connection request.
-`maxThreads` | 1 | 8 | Maximum number of threads supported for `setoption name Threads ...`. Make sure to respect limits of the engine as well as the machine.
-`maxHash` | 16 | 1024 | Maximum number of memory supported for `setoption name Hash ...` (MiB). Make sure to respect limits of the engine as well as the machine.
-`variants` | | `chess,atomic` | Comma separated list of variants supported by `setoption name UCI_Variant`, if any.
+| `url` | *required* | ws://localhost:9670/ | URL of the provider server. External engine registrations are stored in local storage, so this may refer to `localhost` without breaking on other devices. |
+| `secret` | *required* | | A secret token that the client should include in every connection request. |
+| `maxThreads` | 1 | 8 | Maximum number of threads supported for `setoption name Threads ...`. Make sure to respect limits of the engine as well as the machine. |
+| `maxHash` | 16 | 1024 | Maximum number of memory supported for `setoption name Hash ...` (MiB). Make sure to respect limits of the engine as well as the machine. |
+| `variants` | | `chess,atomic` | Comma separated list of variants supported by `setoption name UCI_Variant`, if any. |
 
 ### Accepting connections
 
 The client will open WebSocket connections to the *url* as provided in the
 registration above. It will set the following additional query parameters:
 
-name | description
+| name | description |
 === | ===
-`secret` | The *secret* token as provided in the registration above. The provider must check and reject connection attempts if the token does not match.
-`session` | Each new tab or session will have a different identifier. Reconnections will reuse the identifier.
+| `secret` | The *secret* token as provided in the registration above. The provider must check and reject connection attempts if the token does not match. |
+| `session` | Each new tab or session will have a different identifier. Reconnections will reuse the identifier. |
 
 ### Important considerations for providers
 
