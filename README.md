@@ -9,6 +9,13 @@ External engine
 * [ ] Document authorization, make secret more obvious
 * [ ] Track `Hash` and `Memory` options
 
+Official providers
+------------------
+
+### Official
+
+`remote-uci` -- Cross platform reference implementation in Rust, terminal only.
+
 Protocol
 --------
 
@@ -32,6 +39,42 @@ The provider responds as if the client were exclusively communicating with
 a UCI engine, by sending
 [UCI commands](https://backscattering.de/chess/uci/#engine) as individual
 WebSocket messages. `copyprotection` and `registration` are not supported.
+
+### Important considerations for providers
+
+The most straight-forward implementation would be to forward all WebSocket
+messages to a UCI engine as a thin proxy. However, some important
+considerations arise that require dealing with UCI specifics and tracking
+the engine state.
+
+* :warning: With many UCI engines, a malicious user who can execute arbitrary
+  commands will be able to damage the host system, cause data loss,
+  exfiltrate data, or even achieve arbitrary code execution.
+
+  Recommendation: Use the `safe-uci` adapter (TODO) as a wrapper
+  around the engine. If possible, bind the server only on the loopback
+  interface to limit the attack surface.
+  Generate a strong `secret` for the engine registration and do not forget to
+  check it.
+
+* Network connections can be interrupted.
+
+  Recommendation: Send pings over all WebSocket connections at intervals.
+  If a client times out or disconnects, stop ongoing searches in order to
+  prevent deep or infinite analysis from consuming resources indefinitely.
+
+* Clients may open multiple connections.
+
+  Recommendation: Manage shared access to a single engine process.
+  At each point, one of the WebSocket connections has an exclusive session with
+  the engine. Track the engine state and options associated with each session.
+
+  When receiving a message (except `stop`) on a connection, an
+  exclusive session is requested for that connection. In order to switch
+  sessions, end any ongoing search in the previous session
+  (by injecting `stop`) and wait until any outstanding engine output has been
+  delivered. Then issue `ucinewgame`, to ensure the following session is clean,
+  and reapply any options associated with the session (TODO).
 
 ### Register external engine
 
@@ -60,37 +103,3 @@ registration above. It will set the following additional query parameters:
 | --- | --- |
 | `secret` | The *secret* token as provided in the registration above. The provider must check and reject connection attempts if the token does not match. |
 | `session` | Each new tab or session will have a different identifier. Reconnections will reuse the identifier. |
-
-### Important considerations for providers
-
-The most straight-forward implementation would be to forward all WebSocket
-messages to a UCI engine as a thin proxy. However, some important
-considerations arise that require dealing with UCI specifics and tracking
-the engine state.
-
-* :warning: With many UCI engines, a malicious user who can execute arbitrary
-  commands will be able to damage the host system, cause data loss,
-  exfiltrate data, or even achieve arbitrary code execution.
-
-  Recommendation: Use the `safe-uci` adapter (TODO) as a wrapper
-  around the engine. If possible, bind the server only on the loopback
-  interface to limit the attack surface (TODO: more obvious secret).
-
-* Network connections can be interrupted.
-
-  Recommendation: Send pings over all WebSocket connections at intervals.
-  If a client times out or disconnects, stop ongoing searches in order to
-  prevent deep or infinite analysis from consuming resources indefinitely.
-
-* Clients may open multiple connections.
-
-  Recommendation: Manage shared access to a single engine process.
-  At each point, one of the WebSocket connections has an exclusive session with
-  the engine. Track the engine state and options associated with each session.
-
-  When receiving a message (except `stop`) on a connection, an
-  exclusive session is requested for that connection. In order to switch
-  sessions, end any ongoing search in the previous session
-  (by injecting `stop`) and wait until any outstanding engine output has been
-  delivered. Then issue `ucinewgame`, to ensure the following session is clean,
-  and reapply any options associated with the session (TODO).
