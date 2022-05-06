@@ -19,19 +19,29 @@ use crate::{
     ws::{Secret, SharedEngine},
 };
 
+/// External UCI engine provider for lichess.org.
 #[derive(Debug, Parser)]
+#[clap(version)]
 struct Opt {
+    /// UCI engine executable.
     engine: PathBuf,
+    /// Bind server on this socket address.
     #[clap(long, default_value = "127.0.0.1:9670")]
     bind: SocketAddr,
+    /// Overwrite engine name.
     #[clap(long)]
     name: Option<String>,
+    /// Limit number of threads.
     #[clap(long)]
     max_threads: Option<usize>,
+    /// Limit size of hash table (MiB).
     #[clap(long)]
     max_hash: Option<u64>,
+    /// Provide secret token to use instead of a random one.
     #[clap(long)]
     secret: Option<String>,
+    /// Promise that the selected engine is a recent official Stockfish
+    /// release.
     #[clap(long, hide = true)]
     promise_official_stockfish: bool,
 }
