@@ -1,4 +1,4 @@
-use std::{io, path::PathBuf, process::Stdio};
+use std::{io, iter::zip, path::PathBuf, process::Stdio};
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
@@ -14,17 +14,26 @@ pub enum ClientCommand {
     Isready,
     Go,
     Stop,
+    Setoption,
 }
 
 impl ClientCommand {
     pub fn classify(line: &[u8]) -> Option<ClientCommand> {
-        Some(match line.split(|ch| *ch == b' ').next().unwrap() {
-            b"uci" => ClientCommand::Uci,
-            b"isready" => ClientCommand::Isready,
-            b"go" => ClientCommand::Go,
-            b"stop" => ClientCommand::Stop,
-            _ => return None,
-        })
+        Some(
+            match line
+                .trim_ascii_start()
+                .split(|ch| *ch == b' ')
+                .next()
+                .unwrap()
+            {
+                b"uci" => ClientCommand::Uci,
+                b"isready" => ClientCommand::Isready,
+                b"go" => ClientCommand::Go,
+                b"stop" => ClientCommand::Stop,
+                b"setoption" => ClientCommand::Setoption,
+                _ => return None,
+            },
+        )
     }
 }
 
@@ -37,13 +46,20 @@ pub enum EngineCommand {
 
 impl EngineCommand {
     pub fn classify(line: &[u8]) -> Option<EngineCommand> {
-        Some(match line.split(|ch| *ch == b' ').next().unwrap() {
-            b"uciok" => EngineCommand::Uciok,
-            b"readyok" => EngineCommand::Readyok,
-            b"bestmove" => EngineCommand::Bestmove,
-            b"info" => EngineCommand::Info,
-            _ => return None,
-        })
+        Some(
+            match line
+                .trim_ascii_start()
+                .split(|ch| *ch == b' ')
+                .next()
+                .unwrap()
+            {
+                b"uciok" => EngineCommand::Uciok,
+                b"readyok" => EngineCommand::Readyok,
+                b"bestmove" => EngineCommand::Bestmove,
+                b"info" => EngineCommand::Info,
+                _ => return None,
+            },
+        )
     }
 }
 
@@ -55,30 +71,96 @@ pub struct Engine {
     stdout: BufReader<ChildStdout>,
 }
 
+#[derive(Default, Debug)]
+pub struct EngineInfo {
+    pub name: Option<String>,
+    pub max_threads: Option<usize>,
+    pub max_hash: Option<u64>,
+    pub variants: Vec<String>,
+}
+
 impl Engine {
-    pub async fn new(path: PathBuf) -> io::Result<Engine> {
+    pub async fn new(path: PathBuf) -> io::Result<(Engine, EngineInfo)> {
         let mut process = Command::new(path)
             .stdout(Stdio::piped())
             .stdin(Stdio::piped())
             .spawn()?;
 
-        Ok(Engine {
-            pending_uciok: 0,
-            pending_readyok: 0,
-            searching: false,
-            stdin: BufWriter::new(
-                process.stdin.take().ok_or_else(|| {
+        let mut engine =
+            Engine {
+                pending_uciok: 0,
+                pending_readyok: 0,
+                searching: false,
+                stdin: BufWriter::new(process.stdin.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdin closed")
-                })?,
-            ),
-            stdout: BufReader::new(process.stdout.take().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::BrokenPipe, "engine stdout closed")
-            })?),
-        })
-    }
-}
+                })?),
+                stdout: BufReader::new(process.stdout.take().ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::BrokenPipe, "engine stdout closed")
+                })?),
+            };
 
-impl Engine {
+        let info = engine.engine_info(Session(0)).await?;
+        Ok((engine, info))
+    }
+
+    async fn engine_info(&mut self, session: Session) -> io::Result<EngineInfo> {
+        let mut info = EngineInfo::default();
+        self.send(session, b"uci").await?;
+        while !self.is_idle() {
+            let line = self.recv(session).await?;
+            let mut parts = line.split(|c| c.is_ascii_whitespace());
+            match parts.next().unwrap() {
+                b"id" => match parts.next() {
+                    Some(b"name") => {
+                        info.name = Some(String::from_utf8_lossy(parts.as_slice()).into_owned())
+                    }
+                    _ => (),
+                },
+                b"option" => match parts.next() {
+                    // Quick and dirty parsing of available options.
+                    Some(b"name") => match parts.next() {
+                        Some(b"Hash") => match parts.next() {
+                            Some(b"type") => {
+                                info.max_hash = parts
+                                    .skip_while(|part| part == b"max")
+                                    .next()
+                                    .and_then(|part| btoi::btou(part).ok())
+                            }
+                            _ => (),
+                        },
+                        Some(b"Threads") => match parts.next() {
+                            Some(b"type") => {
+                                info.max_threads = parts
+                                    .skip_while(|part| part == b"max")
+                                    .next()
+                                    .and_then(|part| btoi::btou(part).ok())
+                            }
+                            _ => (),
+                        },
+                        Some(b"UCI_Variant") => match parts.next() {
+                            Some(b"type") => {
+                                info.variants = zip(parts.clone().skip(1), parts)
+                                    .filter_map(|(l, r)| {
+                                        if l == b"option" {
+                                            String::from_utf8(r.to_owned()).ok()
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect()
+                            }
+                            _ => (),
+                        },
+                        _ => (),
+                    },
+                    _ => (),
+                },
+                _ => (),
+            }
+        }
+        Ok(info)
+    }
+
     pub async fn send(&mut self, session: Session, line: &[u8]) -> io::Result<()> {
         if line.contains(&b'\n') {
             return Err(io::Error::new(

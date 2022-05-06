@@ -1,7 +1,11 @@
+#![feature(byte_slice_trim_ascii)]
+#![feature(split_as_slice)]
+#![feature(bool_to_option)]
+
 mod engine;
 mod ws;
 
-use std::{cmp::min, net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
+use std::{net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
 
 use axum::{routing::get, Router};
 use clap::Parser;
@@ -68,11 +72,7 @@ async fn main() {
 
     let opt = Opt::parse();
 
-    let engine = Engine::new(opt.engine).await.expect("spawn engine");
-
-    //let mut locked_pipes = engine.pipes.lock().await;
-    //drop(locked_pipes);
-
+    let (engine, info) = Engine::new(opt.engine).await.expect("spawn engine");
     let engine = Arc::new(SharedEngine::new(engine));
 
     let secret = Secret(
@@ -83,15 +83,29 @@ async fn main() {
     let spec = ExternalWorkerOpts {
         url: format!("ws://{}/", opt.bind),
         secret: secret.clone(),
-        max_threads: min(
+        max_threads: [
+            info.max_threads.unwrap_or(usize::MAX),
             opt.max_threads.unwrap_or(usize::MAX),
             thread::available_parallelism()
                 .expect("available threads")
                 .into(),
-        ),
-        max_hash: min(opt.max_hash.unwrap_or(u64::MAX), available_memory()),
-        variants: Vec::new(),
-        name: opt.name.unwrap_or_else(|| "remote-uci".to_owned()),
+        ]
+        .into_iter()
+        .min()
+        .unwrap(),
+        max_hash: [
+            info.max_hash.unwrap_or(u64::MAX),
+            opt.max_hash.unwrap_or(u64::MAX),
+            available_memory(),
+        ]
+        .into_iter()
+        .min()
+        .unwrap(),
+        variants: info.variants,
+        name: opt
+            .name
+            .or(info.name)
+            .unwrap_or_else(|| "remote-uci".to_owned()),
         official_stockfish: opt.promise_official_stockfish,
     };
 
