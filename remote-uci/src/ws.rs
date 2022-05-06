@@ -169,6 +169,10 @@ async fn handle_socket_inner(
                         let mut engine = shared_engine.engine.lock().await;
                         log::warn!("{}: new session started", session.0);
                         engine.ensure_newgame(session).await?;
+
+                        // TODO: Should track and restore options of the
+                        // session. Not required for lichess.org.
+
                         engine
                     }
                 };

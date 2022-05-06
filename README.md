@@ -52,7 +52,7 @@ the engine state.
   commands will be able to damage the host system, cause data loss,
   exfiltrate data, or even achieve arbitrary code execution.
 
-  Recommendation: Use the `safe-uci` adapter (TODO) as a wrapper
+  Recommendation: Use the `safe-uci` adapter as a wrapper
   around UCI engines. If possible, bind the server only on the loopback
   interface to limit the attack surface.
   Generate a strong `secret` for the engine registration and do not forget to
@@ -78,7 +78,7 @@ the engine state.
   sessions, end any ongoing search in the previous session
   (by injecting `stop`) and wait until any outstanding engine output has been
   delivered. Then issue `ucinewgame`, to ensure the following session is clean,
-  and reapply any options associated with the session (TODO).
+  and reapply any options associated with the session.
 
 ### Register external engine
 
