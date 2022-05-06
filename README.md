@@ -114,3 +114,17 @@ registration above. It will set the following additional query parameters:
 | --- | --- |
 | `secret` | The *secret* token as provided in the registration above. The provider must check and reject connection attempts if the token does not match. |
 | `session` | Each new tab or session will have a different identifier. Reconnections will reuse the identifier. |
+
+### Engine requirements
+
+To properly work on the Lichess analysis board, engines must support:
+
+* `UCI_Chess960`
+* `MultiPV`
+* `info` with
+  - `depth` (reaching 6 must be fast)
+  - `multipv`
+  - `score`
+  - `nodes` (with order of magnitude comparable to Stockfish)
+  - `time`
+  - `pv`
