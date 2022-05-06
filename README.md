@@ -1,6 +1,14 @@
 External engine
 ===============
 
+:wrench: :hammer: Work in progress
+----------------------------------
+
+* [ ] Land https://github.com/lichess-org/lila/pull/10867
+* [ ] Implement `safe-uci` adapter
+* [ ] Document authorization, make secret more obvious
+* [ ] Track `Hash` and `Memory` options
+
 Protocol
 --------
 
