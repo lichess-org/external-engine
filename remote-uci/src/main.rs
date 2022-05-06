@@ -84,7 +84,7 @@ async fn main() {
         url: format!("ws://{}/", opt.bind),
         secret: secret.clone(),
         max_threads: [
-            info.max_threads.unwrap_or(usize::MAX),
+            info.max_threads.unwrap_or(1),
             opt.max_threads.unwrap_or(usize::MAX),
             thread::available_parallelism()
                 .expect("available threads")
@@ -94,7 +94,7 @@ async fn main() {
         .min()
         .unwrap(),
         max_hash: [
-            info.max_hash.unwrap_or(u64::MAX),
+            info.max_hash.unwrap_or(16),
             opt.max_hash.unwrap_or(u64::MAX),
             available_memory(),
         ]
