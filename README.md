@@ -19,6 +19,10 @@ Reference implementation in Rust.
 Cross platform command line application wrapping an UCI engine.
 Secure, but not robust against denial of service.
 
+### Minimal GUIs with bundled Stockfish for Linux, Windows and Mac
+
+Planned
+
 Protocol
 --------
 
