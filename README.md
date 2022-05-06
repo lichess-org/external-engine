@@ -48,12 +48,12 @@ messages to a UCI engine as a thin proxy. However, some important
 considerations arise that require dealing with UCI specifics and tracking
 the engine state.
 
-* :warning: With many UCI engines, a malicious user who can execute arbitrary
+* :warning: With many engines, a malicious user who can execute arbitrary
   commands will be able to damage the host system, cause data loss,
   exfiltrate data, or even achieve arbitrary code execution.
 
   Recommendation: Use the `safe-uci` adapter (TODO) as a wrapper
-  around the engine. If possible, bind the server only on the loopback
+  around UCI engines. If possible, bind the server only on the loopback
   interface to limit the attack surface.
   Generate a strong `secret` for the engine registration and do not forget to
   check it.
@@ -97,7 +97,7 @@ with the following query parameters:
 | `name` | *required* | `Stockfish 15` | Short engine or provider name to show on the client. |
 | `maxThreads` | `1` | `8` | Maximum number of threads supported for `setoption name Threads ...`. Make sure to respect limits of the engine as well as the machine. |
 | `maxHash` | `16` | `1024` | Maximum number of memory supported for `setoption name Hash ...` (MiB). Make sure to respect limits of the engine as well as the machine. |
-| `variants` | | `chess,atomic` | Comma separated list of variants supported by `setoption name UCI_Variant`, if any. |
+| `variants` | | `chess,atomic` | Comma-separated list of variants supported by `setoption name UCI_Variant ...`, if any. |
 
 ### Accepting connections
 
