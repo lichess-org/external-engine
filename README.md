@@ -1,13 +1,14 @@
 External engine
 ===============
 
-:wrench: :hammer: Work in progress
+Using engines running outside of the browser on https://lichess.org/analysis.
+
+Work in progress :wrench: :hammer:
 ----------------------------------
 
-* [ ] Land https://github.com/lichess-org/lila/pull/10867
+* [x] Implement MVP
+* [ ] Complete https://github.com/lichess-org/lila/pull/10867
 * [ ] Implement `safe-uci` adapter
-* [ ] Document authorization, make secret more obvious
-* [ ] Track `Hash` and `Memory` options
 
 Official providers
 ------------------
