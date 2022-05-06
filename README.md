@@ -1,5 +1,5 @@
-External engine
-===============
+External engine (ALPHA)
+=======================
 
 Using engines running outside of the browser on https://lichess.org/analysis.
 
@@ -7,8 +7,9 @@ Work in progress :wrench: :hammer:
 ----------------------------------
 
 * [x] Implement MVP
-* [ ] Complete https://github.com/lichess-org/lila/pull/10867
+* [x] Complete https://github.com/lichess-org/lila/pull/10867
 * [ ] Implement `safe-uci` adapter
+* [ ] Build easily installable local providers
 
 Official providers
 ------------------
@@ -23,8 +24,8 @@ Secure, but not robust against denial of service.
 
 Planned
 
-Protocol
---------
+Protocol (still subject to change)
+----------------------------------
 
 ### Overview
 
