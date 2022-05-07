@@ -1,5 +1,7 @@
-use remote_uci::Opt;
+use std::future;
+
 use clap::Parser;
+use remote_uci::Opt;
 
 #[tokio::main]
 async fn main() {
@@ -13,5 +15,5 @@ async fn main() {
     .format_module_path(false)
     .init();
 
-    remote_uci::serve(Opt::parse()).await;
+    remote_uci::serve(Opt::parse(), future::pending()).await;
 }

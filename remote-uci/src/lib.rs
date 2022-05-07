@@ -5,7 +5,7 @@
 mod engine;
 mod ws;
 
-use std::{net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
+use std::{future::Future, net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
 
 use axum::{routing::get, Router};
 use clap::Parser;
@@ -68,7 +68,7 @@ fn available_memory() -> u64 {
     (sys.available_memory() / 1024).next_power_of_two() / 2
 }
 
-pub async fn serve(opt: Opt) {
+pub async fn serve(opt: Opt, shutdown_signal: impl Future<Output = ()>) {
     let (engine, info) = Engine::new(opt.engine).await.expect("spawn engine");
     let engine = Arc::new(SharedEngine::new(engine));
 
@@ -122,6 +122,7 @@ pub async fn serve(opt: Opt) {
 
     axum::Server::bind(&opt.bind)
         .serve(app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal)
         .await
         .expect("bind");
 }
