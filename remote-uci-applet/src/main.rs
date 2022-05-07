@@ -6,7 +6,7 @@ use std::{
 use clap::Parser;
 use ksni::{
     menu::{Disposition, MenuItem, StandardItem},
-    Tray, TrayService,
+    Icon, Status, Tray, TrayService,
 };
 use remote_uci::{ExternalWorkerOpts, Opt};
 use tokio::sync::Notify;
@@ -30,12 +30,24 @@ struct RemoteUciTray {
 }
 
 impl Tray for RemoteUciTray {
-    fn icon_name(&self) -> String {
-        "help-about".into()
+    fn id(&self) -> String {
+        "remote-uci-applet".into()
     }
 
     fn title(&self) -> String {
-        "remote-uci-applet".into()
+        "External Lichess Engine".into()
+    }
+
+    fn status(&self) -> Status {
+        Status::Passive
+    }
+
+    fn icon_pixmap(&self) -> Vec<Icon> {
+        vec![Icon {
+            width: 32,
+            height: 32,
+            data: include_bytes!("../lichess-favicon-32-invert.argb32").to_vec(),
+        }]
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
