@@ -11,6 +11,19 @@ use ksni::{
 use remote_uci::{ExternalWorkerOpts, Opt};
 use tokio::sync::Notify;
 
+fn xdg_open(url: &str) {
+    match Command::new("xdg-open")
+        .arg(url)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(_) => log::info!("opened {}", url),
+        Err(err) => log::error!("failed to open {}: {}", url, err),
+    }
+}
+
 struct RemoteUciTray {
     shutdown: Arc<Notify>,
     spec: ExternalWorkerOpts,
@@ -30,16 +43,7 @@ impl Tray for RemoteUciTray {
             StandardItem {
                 label: "Connect".into(),
                 activate: Box::new(|tray: &mut RemoteUciTray| {
-                    match Command::new("xdg-open")
-                        .arg(tray.spec.registration_url())
-                        .stdin(Stdio::null())
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .spawn()
-                    {
-                        Ok(_) => log::info!("opened: {}", tray.spec.registration_url()),
-                        Err(err) => log::error!("{}", err),
-                    }
+                    xdg_open(&tray.spec.registration_url())
                 }),
                 ..Default::default()
             }
@@ -54,6 +58,9 @@ impl Tray for RemoteUciTray {
             StandardItem {
                 label: "License".into(),
                 disposition: Disposition::Informative,
+                activate: Box::new(|_: &mut RemoteUciTray| {
+                    xdg_open("https://github.com/lichess-org/external-engine/blob/main/COPYING.md")
+                }),
                 // icon_name: "help-about".into(),
                 ..Default::default()
             }
