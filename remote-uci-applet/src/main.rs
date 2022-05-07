@@ -1,8 +1,16 @@
-use clap::Parser;
-use remote_uci::Opt;
-use ksni::{Tray, TrayService, menu::{MenuItem, StandardItem}};
+use std::sync::Arc;
 
-struct RemoteUciTray;
+use clap::Parser;
+use ksni::{
+    menu::{MenuItem, StandardItem},
+    Tray, TrayService,
+};
+use remote_uci::Opt;
+use tokio::sync::Notify;
+
+struct RemoteUciTray {
+    shutdown: Arc<Notify>,
+}
 
 impl Tray for RemoteUciTray {
     fn icon_name(&self) -> String {
@@ -14,19 +22,23 @@ impl Tray for RemoteUciTray {
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
-        vec![
-            StandardItem {
-                label: "Exit".into(),
-                icon_name: "application-exit".into(),
-                ..Default::default()
-            }.into()
-        ]
+        vec![StandardItem {
+            label: "Exit".into(),
+            icon_name: "application-exit".into(),
+            activate: Box::new(|tray: &mut RemoteUciTray| tray.shutdown.notify_one()),
+            ..Default::default()
+        }
+        .into()]
     }
 }
 
 #[tokio::main]
 async fn main() {
     let opt = Opt::parse();
-    TrayService::new(RemoteUciTray).spawn();
-    remote_uci::serve(opt).await;
+    let shutdown = Arc::new(Notify::new());
+    TrayService::new(RemoteUciTray {
+        shutdown: Arc::clone(&shutdown),
+    })
+    .spawn();
+    remote_uci::serve(opt, shutdown.notified()).await;
 }
