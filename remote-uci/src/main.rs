@@ -1,5 +1,3 @@
-use std::future;
-
 use clap::Parser;
 use remote_uci::Opt;
 
@@ -15,5 +13,7 @@ async fn main() {
     .format_module_path(false)
     .init();
 
-    remote_uci::serve(Opt::parse(), future::pending()).await;
+    let (spec, server) = remote_uci::make_server(Opt::parse()).await;
+    println!("{}", spec.registration_url());
+    server.await.expect("bind");
 }

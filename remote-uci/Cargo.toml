@@ -14,6 +14,7 @@ btoi = "0.4.2"
 clap = { version = "3.1.12", features = ["derive"] }
 env_logger = "0.9.0"
 home = "0.5.3"
+hyper = "0.14.18"
 log = "0.4.16"
 rand = "0.8.5"
 serde = { version = "1.0.137", features = ["derive"] }

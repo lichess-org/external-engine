@@ -5,10 +5,14 @@
 mod engine;
 mod ws;
 
-use std::{future::Future, net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
+use std::{net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
 
-use axum::{routing::get, Router};
+use axum::{
+    routing::{get, IntoMakeService},
+    Router,
+};
 use clap::Parser;
+use hyper::server::conn::AddrIncoming;
 use rand::random;
 use serde::Serialize;
 use serde_with::{serde_as, CommaSeparator, DisplayFromStr, StringWithSeparator};
@@ -49,7 +53,7 @@ pub struct Opt {
 #[serde_as]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ExternalWorkerOpts {
+pub struct ExternalWorkerOpts {
     url: String,
     secret: Secret,
     name: String,
@@ -63,12 +67,26 @@ struct ExternalWorkerOpts {
     official_stockfish: bool,
 }
 
+impl ExternalWorkerOpts {
+    pub fn registration_url(&self) -> String {
+        format!(
+            "https://lichess.org/analysis/external?{}",
+            serde_urlencoded::to_string(&self).expect("serialize spec"),
+        )
+    }
+}
+
 fn available_memory() -> u64 {
     let sys = System::new_with_specifics(RefreshKind::new().with_memory());
     (sys.available_memory() / 1024).next_power_of_two() / 2
 }
 
-pub async fn serve(opt: Opt, shutdown_signal: impl Future<Output = ()>) {
+pub async fn make_server(
+    opt: Opt,
+) -> (
+    ExternalWorkerOpts,
+    hyper::Server<AddrIncoming, IntoMakeService<Router>>,
+) {
     let (engine, info) = Engine::new(opt.engine).await.expect("spawn engine");
     let engine = Arc::new(SharedEngine::new(engine));
 
@@ -106,11 +124,6 @@ pub async fn serve(opt: Opt, shutdown_signal: impl Future<Output = ()>) {
         official_stockfish: opt.promise_official_stockfish,
     };
 
-    println!(
-        "https://lichess.org/analysis/external?{}",
-        serde_urlencoded::to_string(&spec).expect("serialize spec"),
-    );
-
     let app = Router::new().route(
         "/",
         get({
@@ -120,9 +133,8 @@ pub async fn serve(opt: Opt, shutdown_signal: impl Future<Output = ()>) {
         }),
     );
 
-    axum::Server::bind(&opt.bind)
-        .serve(app.into_make_service())
-        .with_graceful_shutdown(shutdown_signal)
-        .await
-        .expect("bind");
+    (
+        spec,
+        axum::Server::bind(&opt.bind).serve(app.into_make_service()),
+    )
 }

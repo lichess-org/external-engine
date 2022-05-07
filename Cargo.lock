@@ -925,6 +925,7 @@ dependencies = [
  "clap 3.1.17",
  "env_logger",
  "home",
+ "hyper",
  "log",
  "rand",
  "serde",
@@ -939,7 +940,9 @@ name = "remote-uci-applet"
 version = "0.1.0"
 dependencies = [
  "clap 3.1.17",
+ "env_logger",
  "ksni",
+ "log",
  "remote-uci",
  "tokio",
 ]
