@@ -1,2 +1,2 @@
 [workspace]
-members = ["remote-uci"]
+members = ["remote-uci", "remote-uci-applet"]
