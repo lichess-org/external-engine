@@ -61,13 +61,6 @@ impl Tray for RemoteUciTray {
             }
             .into(),
             StandardItem {
-                label: "Copy connection URL".into(),
-                // icon_name: "edit-copy".into(),
-                ..Default::default()
-            }
-            .into(),
-            MenuItem::Separator,
-            StandardItem {
                 label: "License".into(),
                 disposition: Disposition::Informative,
                 activate: Box::new(|_: &mut RemoteUciTray| {
