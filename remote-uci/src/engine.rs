@@ -124,7 +124,8 @@ impl Engine {
                         Some(b"Hash") => match parts.next() {
                             Some(b"type") => {
                                 info.max_hash = parts
-                                    .skip_while(|part| part == b"max")
+                                    .skip_while(|part| part != b"max")
+                                    .skip(1)
                                     .next()
                                     .and_then(|part| btoi::btou(part).ok())
                             }
@@ -133,7 +134,8 @@ impl Engine {
                         Some(b"Threads") => match parts.next() {
                             Some(b"type") => {
                                 info.max_threads = parts
-                                    .skip_while(|part| part == b"max")
+                                    .skip_while(|part| part != b"max")
+                                    .skip(1)
                                     .next()
                                     .and_then(|part| btoi::btou(part).ok())
                             }
