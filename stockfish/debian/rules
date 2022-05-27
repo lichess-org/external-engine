@@ -1,4 +1,11 @@
 #!/usr/bin/make -f
 
 %:
-	dh $@
+	dh $@ --sourcedirectory=src
+
+override_dh_auto_clean:
+	cd src && make clean && rm -f stockfish- && rm -f nn-*.nnue
+
+override_dh_auto_build:
+	export CXXFLAGS="$CXXFLAGS -DNNUE_EMBEDDING_OFF"
+	make profile-build ARCH=x86-64 EXE=stockfish-x86-64
