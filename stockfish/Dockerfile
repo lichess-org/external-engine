@@ -33,6 +33,8 @@ RUN cd /stockfish_15-1_amd64; \
     mkdir -p usr/lib/stockfish; \
     cp /Stockfish-sf_15/src/stockfish-* usr/lib/stockfish/; \
     cp /Stockfish-sf_15/src/nn-*.nnue usr/lib/stockfish/; \
+    cp /Stockfish-sf_15/README.md usr/share/doc/stockfish; \
+    cp /Stockfish-sf_15/AUTHORS usr/share/doc/stockfish; \
     md5sum $(find * -type f -not -path 'DEBIAN/*') > DEBIAN/md5sums; \
     cd /; \
     dpkg-deb --build /stockfish_15-1_amd64; \

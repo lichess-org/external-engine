@@ -3,5 +3,5 @@ Upstream-Name: Stockfish
 Source: https://github.com/official-stockfish/Stockfish
 
 Files: *
-Copyright: The Stockfish authors
+Copyright: Copyright 2022 the Stockfish AUTHORS
 License: GPL-3.0+
