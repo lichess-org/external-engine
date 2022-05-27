@@ -1,5 +1,5 @@
 Package: stockfish
 Version: 15
 Architecture: amd64
-Maintainer: niklas@lichess.org
+Maintainer: Niklas Fiekas <niklas@lichess.org>
 Description: Strong chess engine

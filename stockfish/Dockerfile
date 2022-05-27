@@ -24,13 +24,19 @@ RUN cd /Stockfish-sf_15/src; \
         ${STRIP} stockfish-${arch}; \
     done
 
+RUN apt-get install -y lintian # TODO combine
+
 COPY DEBIAN/control /stockfish_15-1_amd64/DEBIAN/
-COPY usr/share/doc/stockfish/copyright //stockfish_15-1_amd64/usr/share/doc/stockfish/
+COPY usr/share/doc/stockfish/copyright /stockfish_15-1_amd64/usr/share/doc/stockfish/
 COPY usr/bin/stockfish /stockfish_15-1_amd64/usr/bin/
-RUN mkdir -p /stockfish_15-1_amd64/usr/lib/stockfish; \
-    cp /Stockfish-sf_15/src/stockfish-* /stockfish_15-1_amd64/usr/lib/stockfish/; \
-    cp /Stockfish-sf_15/src/nn-*.nnue /stockfish_15-1_amd64/usr/lib/stockfish/; \
+RUN cd /stockfish_15-1_amd64; \
+    mkdir -p usr/lib/stockfish; \
+    cp /Stockfish-sf_15/src/stockfish-* usr/lib/stockfish/; \
+    cp /Stockfish-sf_15/src/nn-*.nnue usr/lib/stockfish/; \
+    md5sum $(find * -type f -not -path 'DEBIAN/*') > DEBIAN/md5sums; \
+    cd /; \
     dpkg-deb --build /stockfish_15-1_amd64; \
-    dpkg -i /stockfish_15-1_amd64.deb # test install
+    dpkg -i /stockfish_15-1_amd64.deb; \
+    lintian -I /stockfish_15-1_amd64.deb
 
 CMD ["/usr/bin/stockfish"]
