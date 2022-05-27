@@ -8,4 +8,4 @@ Homepage: https://stockfishchess.org/
 Package: stockfish
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: Strong open source chess engine
+Description: Strong chess engine
