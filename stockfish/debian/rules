@@ -4,8 +4,14 @@
 	dh $@ --sourcedirectory=src
 
 override_dh_auto_clean:
-	cd src && make clean && rm -f stockfish- && rm -f nn-*.nnue
+	cd src
+	make clean
+	rm -f stockfish-
+	rm -f nn-*.nnue
 
 override_dh_auto_build:
+	cd src
 	export CXXFLAGS="$CXXFLAGS -DNNUE_EMBEDDING_OFF"
-	make profile-build ARCH=x86-64 EXE=stockfish-x86-64
+	make -B ARCH=x86-64 EXE=stockfish-x86-64 profile-build
+	make -B ARCH=x86-64-sse3-popcnt EXE=stockfish-x86-64-sse3-popcnt profile-build
+	make -B ARCH=x86-64-ssse3 EXE=stockfish-x86-64-ssse3 profile-build
