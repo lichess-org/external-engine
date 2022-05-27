@@ -2,11 +2,11 @@ FROM debian:bullseye-slim AS builder
 
 RUN apt-get update && apt-get install -y xz-utils make
 
+COPY SHA256SUM .
 COPY sde-external-9.0.0-2021-11-07-lin.tar.xz .
 COPY x86_64-linux-musl-native.tgz .
 COPY sf_15.tar.gz .
 COPY nn-6877cd24400e.nnue .
-COPY SHA256SUM .
 
 RUN sha256sum --check SHA256SUM && \
     tar xf sde-external-9.0.0-2021-11-07-lin.tar.xz && \
@@ -17,7 +17,6 @@ RUN sha256sum --check SHA256SUM && \
 ENV SDE_PATH=/sde-external-9.0.0-2021-11-07-lin/sde64
 ENV CXX=/x86_64-linux-musl-native/bin/x86_64-linux-musl-g++
 ENV STRIP=/x86_64-linux-musl-native/bin/strip
-ENV LDFLAGS=-static
 
 RUN cd /Stockfish-sf_15/src; \
     #for arch in "x86-64-vnni512" "x86-64-avx512" "x86-64-bmi2" "x86-64-avx2" "x86-64-sse41-popcnt" "x86-64-ssse3" "x86-64-sse3-popcnt" "x86-64"; do \
@@ -26,15 +25,12 @@ RUN cd /Stockfish-sf_15/src; \
         ${STRIP} stockfish-${arch}; \
     done
 
+COPY DEBIAN/ /stockfish_15-1_amd64/DEBIAN
 COPY stockfish /stockfish_15-1_amd64/usr/bin/
 RUN mkdir -p /stockfish_15-1_amd64/usr/lib/stockfish; \
     cp /Stockfish-sf_15/src/stockfish-* /stockfish_15-1_amd64/usr/lib/stockfish/; \
-    cp /Stockfish-sf_15/src/nn-*.nnue /stockfish_15-1_amd64/usr/lib/stockfish/
+    cp /Stockfish-sf_15/src/nn-*.nnue /stockfish_15-1_amd64/usr/lib/stockfish/; \
+    dpkg-deb --build /stockfish_15-1_amd64; \
+    dpkg -i /stockfish_15-1_amd64.deb # test install
 
-COPY DEBIAN/ /stockfish_15-1_amd64/DEBIAN
-RUN dpkg-deb --build /stockfish_15-1_amd64
-
-FROM debian:bullseye-slim
-COPY --from=builder /stockfish_15-1_amd64.deb .
-RUN dpkg -i /stockfish_15-1_amd64.deb && rm /stockfish_15-1_amd64.deb
 CMD ["/usr/bin/stockfish"]
