@@ -27,6 +27,6 @@ RUN cd Stockfish-sf_15/src; \
 
 FROM alpine:3
 COPY --from=builder /Stockfish-sf_15/src/stockfish-* /usr/lib/stockfish/
-COPY --from=buidler /Stockfish-sf_15/src/nn-6877cd24400e.nnue /usr/lib/stockfish/
+COPY --from=builder /Stockfish-sf_15/src/nn-6877cd24400e.nnue /usr/lib/stockfish/
 COPY stockfish /usr/bin/stockfish
 CMD ["/usr/bin/stockfish"]
