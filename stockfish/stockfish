@@ -25,4 +25,4 @@ else
     arch=x86-64
 fi
 
-/usr/lib/stockfish/stockfish-${arch} "$@"
+exec /usr/lib/stockfish/stockfish-${arch} "$@"
