@@ -24,7 +24,8 @@ RUN cd /Stockfish-sf_15/src; \
         ${STRIP} stockfish-${arch}; \
     done
 
-COPY DEBIAN/ /stockfish_15-1_amd64/DEBIAN
+COPY DEBIAN/control /stockfish_15-1_amd64/DEBIAN/
+COPY DEBIAN/copyright //stockfish_15-1_amd64/usr/share/doc/stockfish/
 COPY stockfish /stockfish_15-1_amd64/usr/bin/
 RUN mkdir -p /stockfish_15-1_amd64/usr/lib/stockfish; \
     cp /Stockfish-sf_15/src/stockfish-* /stockfish_15-1_amd64/usr/lib/stockfish/; \
