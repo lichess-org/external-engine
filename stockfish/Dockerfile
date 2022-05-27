@@ -25,8 +25,8 @@ RUN cd /Stockfish-sf_15/src; \
     done
 
 COPY DEBIAN/control /stockfish_15-1_amd64/DEBIAN/
-COPY DEBIAN/copyright //stockfish_15-1_amd64/usr/share/doc/stockfish/
-COPY stockfish /stockfish_15-1_amd64/usr/bin/
+COPY usr/share/doc/stockfish/copyright //stockfish_15-1_amd64/usr/share/doc/stockfish/
+COPY usr/bin/stockfish /stockfish_15-1_amd64/usr/bin/
 RUN mkdir -p /stockfish_15-1_amd64/usr/lib/stockfish; \
     cp /Stockfish-sf_15/src/stockfish-* /stockfish_15-1_amd64/usr/lib/stockfish/; \
     cp /Stockfish-sf_15/src/nn-*.nnue /stockfish_15-1_amd64/usr/lib/stockfish/; \
