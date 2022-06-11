@@ -1,6 +1,6 @@
 FROM debian:bullseye-slim AS builder
 
-RUN apt-get update && apt-get install -y xz-utils make
+RUN apt-get update && apt-get install -y xz-utils make lintian
 
 COPY SHA256SUM .
 COPY sde-external-9.0.0-2021-11-07-lin.tar.xz .
@@ -23,8 +23,6 @@ RUN cd /Stockfish-sf_15/src; \
         LDFLAGS=-static CXXFLAGS=-DNNUE_EMBEDDING_OFF make -B profile-build COMP=gcc CXX=${CXX} ARCH=${arch} EXE=stockfish-${arch}; \
         ${STRIP} stockfish-${arch}; \
     done
-
-RUN apt-get install -y lintian # TODO combine
 
 COPY DEBIAN/control /stockfish_15-1_amd64/DEBIAN/
 COPY usr/share/doc/stockfish/copyright /stockfish_15-1_amd64/usr/share/doc/stockfish/
