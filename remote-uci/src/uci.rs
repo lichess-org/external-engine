@@ -56,6 +56,10 @@ enum UciOption {
 enum UciProtocolError {
     #[error("unexpected line break in uci command")]
     UnexpectedLineBreak,
+    #[error("unknown command: {command}")]
+    UnknownCommand { command: String },
+    #[error("expected eol, got token")]
+    ExpectedEol,
 }
 
 #[derive(Clone)]
@@ -78,6 +82,13 @@ impl Words<'_> {
                 Some(c) if pred(c) => self.s = chars.as_str(),
                 _ => break,
             }
+        }
+    }
+
+    fn ensure_end(&mut self) -> Result<(), UciProtocolError> {
+        match self.next() {
+            Some(_) => Err(UciProtocolError::ExpectedEol),
+            None => Ok(()),
         }
     }
 
@@ -129,6 +140,39 @@ enum UciIn {
     },
     Stop,
     Ponderhit,
+    Nop,
+}
+
+impl FromStr for UciIn {
+    type Err = UciProtocolError;
+
+    fn from_str(s: &str) -> Result<UciIn, UciProtocolError> {
+        let mut words = Words::new(s);
+        Ok(match words.next() {
+            Some("uci") => {
+                words.ensure_end()?;
+                UciIn::Uci
+            },
+            Some("isready") => {
+                words.ensure_end()?;
+                UciIn::Isready
+            },
+            Some("Ucinewgame") => {
+                words.ensure_end()?;
+                UciIn::Ucinewgame
+            },
+            Some("stop") => {
+                words.ensure_end()?;
+                UciIn::Stop
+            },
+            Some("ponderhit") => {
+                words.ensure_end()?;
+                UciIn::Ponderhit
+            },
+            Some(command @ _) => return Err(UciProtocolError::UnknownCommand { command: command.to_owned() }),
+            None =>  UciIn::Nop,
+        })
+    }
 }
 
 enum Eval {
