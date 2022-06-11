@@ -4,6 +4,7 @@
 
 mod engine;
 mod ws;
+mod uci;
 
 use std::{net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
 

@@ -21,6 +21,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrayvec"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
+
+[[package]]
 name = "async-trait"
 version = "0.1.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -931,6 +937,7 @@ dependencies = [
  "serde",
  "serde_urlencoded",
  "serde_with",
+ "shakmaty",
  "sysinfo",
  "tokio",
 ]
@@ -1040,6 +1047,17 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "shakmaty"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d36017835d7fcedf29e34214bd3f1374dfb4c437847e125c60538bc3a79cfb8"
+dependencies = [
+ "arrayvec",
+ "bitflags",
+ "btoi",
 ]
 
 [[package]]
