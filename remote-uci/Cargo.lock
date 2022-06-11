@@ -846,6 +846,7 @@ dependencies = [
  "serde_with",
  "shakmaty",
  "sysinfo",
+ "thiserror",
  "tokio",
 ]
 

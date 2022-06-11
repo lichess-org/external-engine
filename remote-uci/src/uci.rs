@@ -3,9 +3,12 @@ use std::time::Duration;
 use shakmaty::fen::Fen;
 use shakmaty::uci::Uci;
 use std::hash::{Hash, Hasher};
+use std::fmt;
+use std::str::FromStr;
+use thiserror::Error;
 
-#[derive(Eq)]
-struct UciOptionName(String);
+#[derive(Clone, Debug, Eq)]
+pub struct UciOptionName(String);
 
 impl PartialEq for UciOptionName {
     fn eq(&self, other: &UciOptionName) -> bool {
@@ -19,6 +22,12 @@ impl Hash for UciOptionName {
             hasher.write_u8(byte.to_ascii_lowercase());
         }
         hasher.write_u8(0xff);
+    }
+}
+
+impl fmt::Display for UciOptionName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -43,7 +52,60 @@ enum UciOption {
     }
 }
 
-struct Permill(u32);
+#[derive(Error, Debug)]
+enum UciProtocolError {
+    #[error("unexpected line break in uci command")]
+    UnexpectedLineBreak,
+}
+
+#[derive(Clone)]
+struct Words<'a> {
+    s: &'a str,
+}
+
+impl Words<'_> {
+    fn new(s: &str) -> Words<'_> {
+        Words { s }
+    }
+
+    fn eat_while<F>(&mut self, mut pred: F)
+    where
+        F: FnMut(char) -> bool,
+    {
+        loop {
+            let mut chars = self.s.chars().clone();
+            match chars.next() {
+                Some(c) if pred(c) => self.s = chars.as_str(),
+                _ => break,
+            }
+        }
+    }
+
+    fn tail(&self) -> &str {
+        self.s
+    }
+}
+
+fn is_sep(c: char) -> bool {
+    c == ' ' || c == '\t'
+}
+
+impl<'a> Iterator for Words<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<&'a str> {
+        self.eat_while(is_sep);
+        let mut words = self.clone();
+        words.eat_while(|c| !is_sep(c));
+        let word = &self.s[..self.s.len() - words.s.len()];
+        self.s = words.s;
+        if word.len() > 0 {
+            Some(word)
+        } else {
+            None
+        }
+    }
+}
 
 enum UciIn {
     Uci,
@@ -97,11 +159,11 @@ enum UciOut {
         score: Option<Score>,
         currmove: Option<Uci>,
         currmovenumber: Option<u32>,
-        hashfull: Option<Permill>,
+        hashfull: Option<u32>,
         nps: Option<u64>,
         tbhits: Option<u64>,
         sbhits: Option<u64>,
-        cpuload: Option<Permill>,
+        cpuload: Option<u32>,
         string: String,
         refutation: (Uci, Vec<Uci>), // at least 1
         currline: (u64, Vec<Uci>),
@@ -109,5 +171,16 @@ enum UciOut {
     Option {
         name: UciOptionName,
         option: UciOption,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_words() {
+        let words: Vec<_> = Words::new("  hello\t world abc ").collect();
+        assert_eq!(words, &["hello", "world", "abc"]);
     }
 }
