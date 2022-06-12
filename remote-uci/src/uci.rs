@@ -6,6 +6,18 @@ use std::hash::{Hash, Hasher};
 use std::fmt;
 use std::str::FromStr;
 use thiserror::Error;
+use nom::IResult;
+use nom::character::complete::{one_of, not_line_ending};
+use nom::multi::{fold_many0, fold_many1};
+use nom::sequence::delimited;
+use nom::bytes::complete::tag;
+use nom::combinator::value;
+use nom::combinator::all_consuming;
+use nom::branch::alt;
+use nom::sequence::tuple;
+use nom::combinator::map;
+use nom::multi::many1;
+use nom::combinator::opt;
 
 #[derive(Clone, Debug, Eq)]
 pub struct UciOptionName(String);
@@ -31,6 +43,7 @@ impl fmt::Display for UciOptionName {
     }
 }
 
+#[derive(Debug, Clone)]
 struct UciOptionValue(String);
 
 enum UciOption {
@@ -62,6 +75,50 @@ enum UciProtocolError {
     ExpectedEol,
 }
 
+fn ws0(input: &str) -> IResult<&str, ()> {
+    fold_many0(one_of(" \t"), || (), |_, _| ())(input)
+}
+
+fn ws1(input: &str) -> IResult<&str, ()> {
+    fold_many1(one_of(" \t"), || (), |_, _| ())(input)
+}
+
+fn setoption(input: &str) -> IResult<&str, UciIn> {
+    map(tuple((
+        tag("setoption"),
+        ws1,
+        tag("name"),
+        ws1,
+        not_line_ending,
+        opt(tuple((
+            ws1,
+            tag("value"),
+            not_line_ending
+        )))
+    )), |(_, _, _, _, name, value)| {
+        assert!(value.is_some());
+        UciIn::Setoption { name: UciOptionName("".to_string()), value: None }
+    })(input)
+}
+
+fn uci_in(input: &str) -> IResult<&str, UciIn> {
+    all_consuming(
+        delimited(
+            ws0,
+            alt((
+                value(UciIn::Uci, tag("uci")),
+                value(UciIn::Isready, tag("isready")),
+                value(UciIn::Stop, tag("stop")),
+                value(UciIn::Ponderhit, tag("ponderhit")),
+                value(UciIn::Ucinewgame, tag("ucinewgame")),
+                setoption,
+            )),
+            ws0
+        )
+    )(input)
+}
+
+#[derive(Debug, Clone)]
 enum UciIn {
     Uci,
     Isready,
@@ -84,39 +141,6 @@ enum UciIn {
     },
     Stop,
     Ponderhit,
-    Nop,
-}
-
-impl FromStr for UciIn {
-    type Err = UciProtocolError;
-
-    fn from_str(s: &str) -> Result<UciIn, UciProtocolError> {
-        let mut words = Words::new(s);
-        Ok(match words.next() {
-            Some("uci") => {
-                words.ensure_end()?;
-                UciIn::Uci
-            },
-            Some("isready") => {
-                words.ensure_end()?;
-                UciIn::Isready
-            },
-            Some("Ucinewgame") => {
-                words.ensure_end()?;
-                UciIn::Ucinewgame
-            },
-            Some("stop") => {
-                words.ensure_end()?;
-                UciIn::Stop
-            },
-            Some("ponderhit") => {
-                words.ensure_end()?;
-                UciIn::Ponderhit
-            },
-            Some(command @ _) => return Err(UciProtocolError::UnknownCommand { command: command.to_owned() }),
-            None =>  UciIn::Nop,
-        })
-    }
 }
 
 enum Eval {
@@ -168,7 +192,6 @@ mod tests {
 
     #[test]
     fn test_words() {
-        let words: Vec<_> = Words::new("  hello\t world abc ").collect();
-        assert_eq!(words, &["hello", "world", "abc"]);
+        dbg!(uci_in(" setoption name hello world value foo \t")).unwrap();
     }
 }
