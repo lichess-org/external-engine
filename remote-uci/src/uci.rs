@@ -1,23 +1,14 @@
 use std::num::NonZeroU32;
 use std::time::Duration;
+use combine::parser::repeat::repeat_until;
 use shakmaty::fen::Fen;
 use shakmaty::uci::Uci;
 use std::hash::{Hash, Hasher};
 use std::fmt;
-use std::str::FromStr;
 use thiserror::Error;
-use nom::IResult;
-use nom::character::complete::{one_of, not_line_ending};
-use nom::multi::{fold_many0, fold_many1};
-use nom::sequence::delimited;
-use nom::bytes::complete::tag;
-use nom::combinator::value;
-use nom::combinator::all_consuming;
-use nom::branch::alt;
-use nom::sequence::tuple;
-use nom::combinator::map;
-use nom::multi::many1;
-use nom::combinator::opt;
+
+use combine::{Parser, skip_many, satisfy, Stream, choice, eof, skip_many1, attempt, many1, not_followed_by, optional};
+use combine::parser::char::string;
 
 #[derive(Clone, Debug, Eq)]
 pub struct UciOptionName(String);
@@ -43,7 +34,7 @@ impl fmt::Display for UciOptionName {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct UciOptionValue(String);
 
 enum UciOption {
@@ -75,50 +66,61 @@ enum UciProtocolError {
     ExpectedEol,
 }
 
-fn ws0(input: &str) -> IResult<&str, ()> {
-    fold_many0(one_of(" \t"), || (), |_, _| ())(input)
+fn ws<Input>() -> impl Parser<Input, Output=char>
+where
+    Input: Stream<Token = char>
+{
+    satisfy(|c| c == ' ' || c == '\t')
 }
 
-fn ws1(input: &str) -> IResult<&str, ()> {
-    fold_many1(one_of(" \t"), || (), |_, _| ())(input)
+fn text<Input>() -> impl Parser<Input, Output=char>
+where
+    Input: Stream<Token = char>
+{
+    satisfy(|c| c != '\r' && c != '\n')
 }
 
-fn setoption(input: &str) -> IResult<&str, UciIn> {
-    map(tuple((
-        tag("setoption"),
-        ws1,
-        tag("name"),
-        ws1,
-        not_line_ending,
-        opt(tuple((
-            ws1,
-            tag("value"),
-            not_line_ending
-        )))
-    )), |(_, _, _, _, name, value)| {
-        assert!(value.is_some());
-        UciIn::Setoption { name: UciOptionName("".to_string()), value: None }
-    })(input)
-}
-
-fn uci_in(input: &str) -> IResult<&str, UciIn> {
-    all_consuming(
-        delimited(
-            ws0,
-            alt((
-                value(UciIn::Uci, tag("uci")),
-                value(UciIn::Isready, tag("isready")),
-                value(UciIn::Stop, tag("stop")),
-                value(UciIn::Ponderhit, tag("ponderhit")),
-                value(UciIn::Ucinewgame, tag("ucinewgame")),
-                setoption,
-            )),
-            ws0
+fn setoption<Input>() -> impl Parser<Input, Output=UciIn>
+where
+    Input: Stream<Token = char>
+{
+    string("setoption")
+        .skip(skip_many1(ws()))
+        .skip(string("name"))
+        .skip(skip_many1(ws()))
+        .with(
+            text().and(
+            repeat_until(text(), attempt(skip_many1(ws()).with(string("value")))))
         )
-    )(input)
+        .and(
+            optional(
+                skip_many1(ws())
+                    .skip(string("value"))
+                    .skip(skip_many1(ws()))
+                    .with(many1(text()))
+            )
+        )
+        .map(|(name, value): ((char, String), Option<String>)| UciIn::Uci)
 }
 
-#[derive(Debug, Clone)]
+fn uci_in<Input>() -> impl Parser<Input, Output=UciIn>
+where
+    Input: Stream<Token = char>
+{
+    skip_many(ws())
+        .with(choice((
+            attempt(string("uci").map(|_| UciIn::Uci)),
+            attempt(string("isready").map(|_| UciIn::Isready)),
+            attempt(string("ucinewgame").map(|_| UciIn::Ucinewgame)),
+            attempt(string("stop").map(|_| UciIn::Stop)),
+            attempt(string("ponderhit").map(|_| UciIn::Ponderhit)),
+            attempt(setoption()),
+        )))
+        .skip(skip_many(ws()))
+        .skip(eof())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum UciIn {
     Uci,
     Isready,
@@ -189,9 +191,14 @@ enum UciOut {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use combine::EasyParser;
 
     #[test]
     fn test_words() {
-        dbg!(uci_in(" setoption name hello world value foo \t")).unwrap();
+        //assert_eq!(uci_in().easy_parse(" uci \t "), Ok((UciIn::Uci, "")));
+
+        if let Err(err) = uci_in().easy_parse(combine::stream::position::Stream::new(" setoption name hi there value foo \t ")) {
+            panic!("{}", err);
+        }
     }
 }
