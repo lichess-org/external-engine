@@ -16,6 +16,7 @@ env_logger = "0.9.0"
 home = "0.5.3"
 hyper = "0.14.18"
 log = "0.4.16"
+nom = "7.1.1"
 rand = "0.8.5"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_urlencoded = "0.7.1"

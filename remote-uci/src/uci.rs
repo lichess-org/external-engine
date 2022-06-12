@@ -62,62 +62,6 @@ enum UciProtocolError {
     ExpectedEol,
 }
 
-#[derive(Clone)]
-struct Words<'a> {
-    s: &'a str,
-}
-
-impl Words<'_> {
-    fn new(s: &str) -> Words<'_> {
-        Words { s }
-    }
-
-    fn eat_while<F>(&mut self, mut pred: F)
-    where
-        F: FnMut(char) -> bool,
-    {
-        loop {
-            let mut chars = self.s.chars().clone();
-            match chars.next() {
-                Some(c) if pred(c) => self.s = chars.as_str(),
-                _ => break,
-            }
-        }
-    }
-
-    fn ensure_end(&mut self) -> Result<(), UciProtocolError> {
-        match self.next() {
-            Some(_) => Err(UciProtocolError::ExpectedEol),
-            None => Ok(()),
-        }
-    }
-
-    fn tail(&self) -> &str {
-        self.s
-    }
-}
-
-fn is_sep(c: char) -> bool {
-    c == ' ' || c == '\t'
-}
-
-impl<'a> Iterator for Words<'a> {
-    type Item = &'a str;
-
-    fn next(&mut self) -> Option<&'a str> {
-        self.eat_while(is_sep);
-        let mut words = self.clone();
-        words.eat_while(|c| !is_sep(c));
-        let word = &self.s[..self.s.len() - words.s.len()];
-        self.s = words.s;
-        if word.len() > 0 {
-            Some(word)
-        } else {
-            None
-        }
-    }
-}
-
 enum UciIn {
     Uci,
     Isready,
