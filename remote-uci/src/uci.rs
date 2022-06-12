@@ -1,14 +1,10 @@
 use std::num::NonZeroU32;
 use std::time::Duration;
-use combine::parser::repeat::repeat_until;
 use shakmaty::fen::Fen;
 use shakmaty::uci::Uci;
 use std::hash::{Hash, Hasher};
 use std::fmt;
 use thiserror::Error;
-
-use combine::{Parser, skip_many, satisfy, Stream, choice, eof, skip_many1, attempt, many1, not_followed_by, optional};
-use combine::parser::char::string;
 
 #[derive(Clone, Debug, Eq)]
 pub struct UciOptionName(String);
@@ -66,58 +62,12 @@ enum UciProtocolError {
     ExpectedEol,
 }
 
-fn ws<Input>() -> impl Parser<Input, Output=char>
-where
-    Input: Stream<Token = char>
-{
-    satisfy(|c| c == ' ' || c == '\t')
+fn read(s: &str) -> (Option<&str>, &str) {
+    todo!()
 }
 
-fn text<Input>() -> impl Parser<Input, Output=char>
-where
-    Input: Stream<Token = char>
-{
-    satisfy(|c| c != '\r' && c != '\n')
-}
-
-fn setoption<Input>() -> impl Parser<Input, Output=UciIn>
-where
-    Input: Stream<Token = char>
-{
-    string("setoption")
-        .skip(skip_many1(ws()))
-        .skip(string("name"))
-        .skip(skip_many1(ws()))
-        .with(
-            text().and(
-            repeat_until(text(), attempt(skip_many1(ws()).with(string("value")))))
-        )
-        .and(
-            optional(
-                skip_many1(ws())
-                    .skip(string("value"))
-                    .skip(skip_many1(ws()))
-                    .with(many1(text()))
-            )
-        )
-        .map(|(name, value): ((char, String), Option<String>)| UciIn::Uci)
-}
-
-fn uci_in<Input>() -> impl Parser<Input, Output=UciIn>
-where
-    Input: Stream<Token = char>
-{
-    skip_many(ws())
-        .with(choice((
-            attempt(string("uci").map(|_| UciIn::Uci)),
-            attempt(string("isready").map(|_| UciIn::Isready)),
-            attempt(string("ucinewgame").map(|_| UciIn::Ucinewgame)),
-            attempt(string("stop").map(|_| UciIn::Stop)),
-            attempt(string("ponderhit").map(|_| UciIn::Ponderhit)),
-            attempt(setoption()),
-        )))
-        .skip(skip_many(ws()))
-        .skip(eof())
+fn read_until<'a>(s: &'a str, token: &str) -> (Option<&'a str>, &'a str) {
+    todo!()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,14 +141,9 @@ enum UciOut {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use combine::EasyParser;
 
     #[test]
     fn test_words() {
         //assert_eq!(uci_in().easy_parse(" uci \t "), Ok((UciIn::Uci, "")));
-
-        if let Err(err) = uci_in().easy_parse(combine::stream::position::Stream::new(" setoption name hi there value foo \t ")) {
-            panic!("{}", err);
-        }
     }
 }
