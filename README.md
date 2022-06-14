@@ -66,7 +66,7 @@ the engine state.
   check it.
 
 * Analysis is resource intensive. Be sure to put limits on CPU and memory usage
-  and inforce them, in order for your system to stay responsive.
+  and enforce them, in order for your system to stay responsive.
 
 * Network connections can be interrupted.
 
