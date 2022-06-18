@@ -62,14 +62,6 @@ enum UciProtocolError {
     ExpectedEol,
 }
 
-fn read(s: &str) -> (Option<&str>, &str) {
-    todo!()
-}
-
-fn read_until<'a>(s: &'a str, token: &str) -> (Option<&'a str>, &'a str) {
-    todo!()
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum UciIn {
     Uci,
@@ -138,9 +130,30 @@ enum UciOut {
     }
 }
 
+fn read(s: &str) -> (Option<&str>, &str) {
+    let s = s.trim_start_matches(|c| c == ' ' || c == '\t');
+    if s.is_empty() {
+        (None, s)
+    } else {
+        let (head, tail) = s.split_at(s.find(|c| c == ' ' || c == '\t').unwrap_or_else(|| s.len()));
+        (Some(head), tail)
+    }
+}
+
+fn read_until<'a>(s: &'a str, token: &str) -> (Option<&'a str>, &'a str) {
+    todo!()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_read() {
+        assert_eq!(read(""), (None, ""));
+        assert_eq!(read(" abc\t def g"), (Some("abc"), "\t def g"));
+        assert_eq!(read("  end"), (Some("end"), ""));
+    }
 
     #[test]
     fn test_words() {
