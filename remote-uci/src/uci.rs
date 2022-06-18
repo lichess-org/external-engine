@@ -5,6 +5,7 @@ use shakmaty::uci::Uci;
 use std::hash::{Hash, Hasher};
 use std::fmt;
 use thiserror::Error;
+use memchr::memchr2_iter;
 
 #[derive(Clone, Debug, Eq)]
 pub struct UciOptionName(String);
@@ -130,18 +131,35 @@ enum UciOut {
     }
 }
 
+fn is_separator(c: char) -> bool {
+    c == ' ' || c == '\t'
+}
+
 fn read(s: &str) -> (Option<&str>, &str) {
-    let s = s.trim_start_matches(|c| c == ' ' || c == '\t');
+    let s = s.trim_start_matches(is_separator);
     if s.is_empty() {
         (None, s)
     } else {
-        let (head, tail) = s.split_at(s.find(|c| c == ' ' || c == '\t').unwrap_or_else(|| s.len()));
+        let (head, tail) = s.split_at(s.find(is_separator).unwrap_or_else(|| s.len()));
         (Some(head), tail)
     }
 }
 
 fn read_until<'a>(s: &'a str, token: &str) -> (Option<&'a str>, &'a str) {
-    todo!()
+    let s = s.trim_start_matches(is_separator);
+    if s.is_empty() {
+        (None, "")
+    } else {
+        for end in memchr2_iter(b' ', b'\t', s.as_bytes()) {
+            let (head, tail) = s.split_at(end);
+            if let (Some(next_token), _) = read(tail) {
+                if next_token == token {
+                    return (Some(head), tail);
+                }
+            }
+        }
+        (Some(s), "")
+    }
 }
 
 #[cfg(test)]
@@ -156,7 +174,9 @@ mod tests {
     }
 
     #[test]
-    fn test_words() {
-        //assert_eq!(uci_in().easy_parse(" uci \t "), Ok((UciIn::Uci, "")));
+    fn test_read_until() {
+        assert_eq!(read_until("abc def value foo", "value"), (Some("abc def"), " value foo"));
+        assert_eq!(read_until("abc def valuefoo", "value"), (Some("abc def valuefoo"), ""));
+        assert_eq!(read_until("value abc", "value"), (Some("value abc"), ""));
     }
 }

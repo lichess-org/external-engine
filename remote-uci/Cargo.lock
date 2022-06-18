@@ -851,6 +851,7 @@ dependencies = [
  "home",
  "hyper",
  "log",
+ "memchr",
  "rand",
  "serde",
  "serde_urlencoded",
