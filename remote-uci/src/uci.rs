@@ -44,16 +44,6 @@ enum UciOption {
     String { default: String },
 }
 
-#[derive(Error, Debug)]
-enum UciProtocolError {
-    #[error("unexpected line break in uci command")]
-    UnexpectedLineBreak,
-    #[error("unknown command: {command}")]
-    UnknownCommand { command: String },
-    #[error("expected eol, got token")]
-    ExpectedEol,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum UciIn {
     Uci,
@@ -131,6 +121,121 @@ enum UciOut {
     },
 }
 
+#[derive(Error, Debug)]
+enum ProtocolError {
+    #[error("unexpected token")]
+    UnexpectedToken,
+    #[error("unexpected line break in uci command")]
+    UnexpectedLineBreak,
+    #[error("expected end of line")]
+    ExpectedEndOfLine,
+    #[error("unexpected end of line")]
+    UnexpectedEndOfLine,
+}
+
+struct Parser<'a> {
+    s: &'a str,
+}
+
+impl Parser<'_> {
+    pub fn new(s: &str) -> Result<Parser<'_>, ProtocolError> {
+        match memchr2(b'\r', b'\n', s.as_bytes()) {
+            Some(_) => Err(ProtocolError::UnexpectedLineBreak),
+            None => Ok(Parser { s }),
+        }
+    }
+
+    fn peek(&self) -> Option<&str> {
+        let (head, _) = read(self.s);
+        head
+    }
+
+    fn bump(&mut self) -> Option<&str> {
+        let (head, tail) = read(self.s);
+        self.s = tail;
+        head
+    }
+
+    fn bump_until(&mut self, token: &str) -> Option<&str> {
+        let (head, tail) = read_until(self.s, |t| t == token);
+        self.s = tail;
+        head
+    }
+
+    fn tail(&mut self) -> Option<&str> {
+        let (tail, _) = read_until(self.s, |_| false);
+        tail
+    }
+
+    fn end(&self) -> Result<(), ProtocolError> {
+        match self.peek() {
+            Some(_) => Err(ProtocolError::ExpectedEndOfLine),
+            None => Ok(()),
+        }
+    }
+
+    fn parse_setoption(&mut self) -> Result<UciIn, ProtocolError> {
+        Ok(match self.bump() {
+            Some("name") => UciIn::Setoption {
+                name: UciOptionName(
+                    self.bump_until("value")
+                        .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                        .to_owned(),
+                ),
+                value: match self.bump() {
+                    Some("value") => Some(UciOptionValue(
+                        self.tail()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .to_owned(),
+                    )),
+                    Some(_) => unreachable!(),
+                    None => None,
+                },
+            },
+            Some(_) => return Err(ProtocolError::UnexpectedToken),
+            None => return Err(ProtocolError::UnexpectedEndOfLine),
+        })
+    }
+
+    fn parse_position(&mut self) -> Result<UciIn, ProtocolError> {
+        todo!()
+    }
+
+    fn parse_go(&mut self) -> Result<UciIn, ProtocolError> {
+        todo!()
+    }
+
+    pub fn parse_in(&mut self) -> Result<Option<UciIn>, ProtocolError> {
+        Ok(Some(match self.bump() {
+            Some("uci") => {
+                self.end()?;
+                UciIn::Uci
+            }
+            Some("isready") => {
+                self.end()?;
+                UciIn::Isready
+            }
+            Some("ucinewgame") => {
+                self.end()?;
+                UciIn::Ucinewgame
+            }
+            Some("stop") => {
+                self.end()?;
+                UciIn::Stop
+            }
+            Some("ponderhit") => {
+                self.end()?;
+                UciIn::Ponderhit
+            }
+            Some("setoption") => self.parse_setoption()?,
+            Some("position") => self.parse_position()?,
+            Some("go") => self.parse_go()?,
+            Some(_) => return Err(ProtocolError::UnexpectedToken),
+            None => return Ok(None),
+        }))
+    }
+}
+
 fn is_separator(c: char) -> bool {
     c == ' ' || c == '\t'
 }
@@ -146,7 +251,10 @@ fn read(s: &str) -> (Option<&str>, &str) {
     }
 }
 
-fn read_until<'a>(s: &'a str, token: &str) -> (Option<&'a str>, &'a str) {
+fn read_until<'a, P>(s: &'a str, mut pred: P) -> (Option<&'a str>, &'a str)
+where
+    P: FnMut(&str) -> bool,
+{
     let s = s.trim_start_matches(is_separator);
     if s.is_empty() {
         (None, "")
@@ -154,7 +262,7 @@ fn read_until<'a>(s: &'a str, token: &str) -> (Option<&'a str>, &'a str) {
         for end in memchr2_iter(b' ', b'\t', s.as_bytes()) {
             let (head, tail) = s.split_at(end);
             if let (Some(next_token), _) = read(tail) {
-                if next_token == token {
+                if pred(next_token) {
                     return (Some(head), tail);
                 }
             }
@@ -177,13 +285,39 @@ mod tests {
     #[test]
     fn test_read_until() {
         assert_eq!(
-            read_until("abc def value foo", "value"),
+            read_until("abc def value foo", |t| t == "value"),
             (Some("abc def"), " value foo")
         );
         assert_eq!(
-            read_until("abc def valuefoo", "value"),
+            read_until("abc def valuefoo", |t| t == "value"),
             (Some("abc def valuefoo"), "")
         );
-        assert_eq!(read_until("value abc", "value"), (Some("value abc"), ""));
+        assert_eq!(
+            read_until("value abc", |t| t == "value"),
+            (Some("value abc"), "")
+        );
+    }
+
+    #[test]
+    fn test_setoption() -> Result<(), ProtocolError> {
+        let mut parser = Parser::new("setoption name Skill Level value 10")?;
+        assert_eq!(
+            parser.parse_in()?,
+            Some(UciIn::Setoption {
+                name: UciOptionName("skill level".to_owned()),
+                value: Some(UciOptionValue("10".to_owned()))
+            })
+        );
+
+        let mut parser = Parser::new("setoption name Clear Hash")?;
+        assert_eq!(
+            parser.parse_in()?,
+            Some(UciIn::Setoption {
+                name: UciOptionName("clEAR haSH".to_owned()),
+                value: None
+            })
+        );
+
+        Ok(())
     }
 }
