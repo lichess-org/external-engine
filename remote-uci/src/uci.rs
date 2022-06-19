@@ -1,12 +1,15 @@
 use std::{
     fmt,
     hash::{Hash, Hasher},
-    num::NonZeroU32,
+    num::{NonZeroU32, ParseIntError},
     time::Duration,
 };
 
 use memchr::{memchr2, memchr2_iter};
-use shakmaty::{fen::Fen, uci::Uci};
+use shakmaty::{
+    fen::{Fen, ParseFenError},
+    uci::{ParseUciError, Uci},
+};
 use thiserror::Error;
 
 #[derive(Clone, Debug, Eq)]
@@ -131,10 +134,26 @@ enum ProtocolError {
     ExpectedEndOfLine,
     #[error("unexpected end of line")]
     UnexpectedEndOfLine,
+    #[error("invalid fen: {0}")]
+    InvalidFen(#[from] ParseFenError),
+    #[error("invalid move: {0}")]
+    InvalidMove(#[from] ParseUciError),
+    #[error("invalid integer: {0}")]
+    InvalidInteger(#[from] ParseIntError),
 }
 
 struct Parser<'a> {
     s: &'a str,
+}
+
+impl<'a> Iterator for Parser<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<&'a str> {
+        let (head, tail) = read(self.s);
+        self.s = tail;
+        head
+    }
 }
 
 impl Parser<'_> {
@@ -150,13 +169,7 @@ impl Parser<'_> {
         head
     }
 
-    fn bump(&mut self) -> Option<&str> {
-        let (head, tail) = read(self.s);
-        self.s = tail;
-        head
-    }
-
-    fn bump_until(&mut self, token: &str) -> Option<&str> {
+    fn until(&mut self, token: &str) -> Option<&str> {
         let (head, tail) = read_until(self.s, |t| t == token);
         self.s = tail;
         head
@@ -175,14 +188,14 @@ impl Parser<'_> {
     }
 
     fn parse_setoption(&mut self) -> Result<UciIn, ProtocolError> {
-        Ok(match self.bump() {
+        Ok(match self.next() {
             Some("name") => UciIn::Setoption {
                 name: UciOptionName(
-                    self.bump_until("value")
+                    self.until("value")
                         .ok_or(ProtocolError::UnexpectedEndOfLine)?
                         .to_owned(),
                 ),
-                value: match self.bump() {
+                value: match self.next() {
                     Some("value") => Some(UciOptionValue(
                         self.tail()
                             .ok_or(ProtocolError::UnexpectedEndOfLine)?
@@ -198,15 +211,117 @@ impl Parser<'_> {
     }
 
     fn parse_position(&mut self) -> Result<UciIn, ProtocolError> {
-        todo!()
+        Ok(UciIn::Position {
+            fen: match self.until("moves") {
+                Some("startpos") => None,
+                Some(fen) => Some(fen.parse()?),
+                None => return Err(ProtocolError::UnexpectedEndOfLine),
+            },
+            moves: match self.next() {
+                Some("moves") => self
+                    .map(|m| m.parse())
+                    .collect::<Result<_, ParseUciError>>()?,
+                Some(_) => unreachable!(),
+                None => Vec::new(),
+            },
+        })
+    }
+
+    fn parse_millis(&mut self) -> Result<Duration, ProtocolError> {
+        Ok(Duration::from_millis(
+            self.next()
+                .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                .parse()?,
+        ))
+    }
+
+    fn parse_searchmoves(&mut self) -> Vec<Uci> {
+        let mut searchmoves = Vec::new();
+        while let Some(m) = self.peek() {
+            match m.parse() {
+                Ok(uci) => {
+                    self.next();
+                    searchmoves.push(uci);
+                }
+                Err(_) => break,
+            }
+        }
+        searchmoves
     }
 
     fn parse_go(&mut self) -> Result<UciIn, ProtocolError> {
-        todo!()
+        let mut searchmoves = None;
+        let mut ponder = false;
+        let mut wtime = None;
+        let mut btime = None;
+        let mut winc = None;
+        let mut binc = None;
+        let mut movestogo = None;
+        let mut depth = None;
+        let mut nodes = None;
+        let mut mate = None;
+        let mut movetime = None;
+        let mut infinite = false;
+        loop {
+            match self.next() {
+                Some("ponder") => ponder = true,
+                Some("infinite") => infinite = true,
+                Some("movestogo") => {
+                    movestogo = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("depth") => {
+                    depth = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("nodes") => {
+                    nodes = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("mate") => {
+                    mate = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("movetime") => movetime = Some(self.parse_millis()?),
+                Some("wtime") => wtime = Some(self.parse_millis()?),
+                Some("btime") => btime = Some(self.parse_millis()?),
+                Some("winc") => winc = Some(self.parse_millis()?),
+                Some("binc") => binc = Some(self.parse_millis()?),
+                Some("searchmoves") => searchmoves = Some(self.parse_searchmoves()),
+                Some(_) => return Err(ProtocolError::UnexpectedToken),
+                None => break,
+            }
+        }
+        Ok(UciIn::Go {
+            searchmoves,
+            ponder,
+            wtime,
+            btime,
+            winc,
+            binc,
+            movestogo,
+            depth,
+            nodes,
+            mate,
+            movetime,
+            infinite,
+        })
     }
 
     pub fn parse_in(&mut self) -> Result<Option<UciIn>, ProtocolError> {
-        Ok(Some(match self.bump() {
+        Ok(Some(match self.next() {
             Some("uci") => {
                 self.end()?;
                 UciIn::Uci
