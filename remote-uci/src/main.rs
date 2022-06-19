@@ -3,8 +3,8 @@
 #![feature(bool_to_option)]
 
 mod engine;
-mod ws;
 mod uci;
+mod ws;
 
 use std::{net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
 
@@ -23,7 +23,6 @@ use crate::{
     engine::Engine,
     ws::{Secret, SharedEngine},
 };
-
 
 /// External UCI engine provider for lichess.org.
 #[derive(Debug, Parser)]

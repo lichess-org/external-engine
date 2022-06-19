@@ -1,11 +1,13 @@
-use std::num::NonZeroU32;
-use std::time::Duration;
-use shakmaty::fen::Fen;
-use shakmaty::uci::Uci;
-use std::hash::{Hash, Hasher};
-use std::fmt;
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+    num::NonZeroU32,
+    time::Duration,
+};
+
+use memchr::{memchr2, memchr2_iter};
+use shakmaty::{fen::Fen, uci::Uci};
 use thiserror::Error;
-use memchr::memchr2_iter;
 
 #[derive(Clone, Debug, Eq)]
 pub struct UciOptionName(String);
@@ -35,22 +37,11 @@ impl fmt::Display for UciOptionName {
 struct UciOptionValue(String);
 
 enum UciOption {
-    Check {
-        default: bool,
-    },
-    Spin {
-        default: i64,
-        min: i64,
-        max: i64,
-    },
-    Combo {
-        default: String,
-        var: Vec<String>,
-    },
+    Check { default: bool },
+    Spin { default: i64, min: i64, max: i64 },
+    Combo { default: String, var: Vec<String> },
     Button,
-    String {
-        default: String,
-    }
+    String { default: String },
 }
 
 #[derive(Error, Debug)]
@@ -67,9 +58,15 @@ enum UciProtocolError {
 enum UciIn {
     Uci,
     Isready,
-    Setoption { name: UciOptionName, value: Option<UciOptionValue> },
+    Setoption {
+        name: UciOptionName,
+        value: Option<UciOptionValue>,
+    },
     Ucinewgame,
-    Position { fen: Option<Fen>, moves: Vec<Uci> },
+    Position {
+        fen: Option<Fen>,
+        moves: Vec<Uci>,
+    },
     Go {
         searchmoves: Option<Vec<Uci>>,
         ponder: bool,
@@ -105,7 +102,10 @@ enum UciOut {
     IdAuthor,
     Uciok,
     Readyok,
-    Bestmove { m: Option<Uci>, ponder: Option<Uci> },
+    Bestmove {
+        m: Option<Uci>,
+        ponder: Option<Uci>,
+    },
     Info {
         depth: Option<u32>,
         seldepth: Option<u32>,
@@ -128,7 +128,7 @@ enum UciOut {
     Option {
         name: UciOptionName,
         option: UciOption,
-    }
+    },
 }
 
 fn is_separator(c: char) -> bool {
@@ -140,7 +140,8 @@ fn read(s: &str) -> (Option<&str>, &str) {
     if s.is_empty() {
         (None, s)
     } else {
-        let (head, tail) = s.split_at(s.find(is_separator).unwrap_or_else(|| s.len()));
+        let (head, tail) =
+            s.split_at(memchr2(b' ', b'\t', s.as_bytes()).unwrap_or_else(|| s.len()));
         (Some(head), tail)
     }
 }
@@ -175,8 +176,14 @@ mod tests {
 
     #[test]
     fn test_read_until() {
-        assert_eq!(read_until("abc def value foo", "value"), (Some("abc def"), " value foo"));
-        assert_eq!(read_until("abc def valuefoo", "value"), (Some("abc def valuefoo"), ""));
+        assert_eq!(
+            read_until("abc def value foo", "value"),
+            (Some("abc def"), " value foo")
+        );
+        assert_eq!(
+            read_until("abc def valuefoo", "value"),
+            (Some("abc def valuefoo"), "")
+        );
         assert_eq!(read_until("value abc", "value"), (Some("value abc"), ""));
     }
 }
