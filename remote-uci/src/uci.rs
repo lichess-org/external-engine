@@ -57,20 +57,21 @@ pub enum UciOption {
 
 impl fmt::Display for UciOption {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Ok(match self {
-            UciOption::Check { default } => write!(f, "type check default {default}")?,
+        match self {
+            UciOption::Check { default } => write!(f, "type check default {default}"),
             UciOption::Spin { default, min, max } => {
-                write!(f, "type spin default {default} min {min} max {max}")?
+                write!(f, "type spin default {default} min {min} max {max}")
             }
             UciOption::Combo { default, var } => {
                 write!(f, "type combo default {default}")?;
                 for v in var {
                     write!(f, " var {v}")?;
                 }
+                Ok(())
             }
-            UciOption::Button => f.write_str("type button")?,
-            UciOption::String { default } => write!(f, "type string default {default}")?,
-        })
+            UciOption::Button => f.write_str("type button"),
+            UciOption::String { default } => write!(f, "type string default {default}"),
+        }
     }
 }
 
@@ -113,16 +114,17 @@ impl UciIn {
 
 impl fmt::Display for UciIn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Ok(match self {
-            UciIn::Uci => f.write_str("uci")?,
-            UciIn::Isready => f.write_str("isready")?,
+        match self {
+            UciIn::Uci => f.write_str("uci"),
+            UciIn::Isready => f.write_str("isready"),
             UciIn::Setoption { name, value } => {
                 write!(f, "setoption name {name}")?;
                 if let Some(value) = value {
                     write!(f, " value {value}")?;
                 }
+                Ok(())
             }
-            UciIn::Ucinewgame => f.write_str("ucinewgame")?,
+            UciIn::Ucinewgame => f.write_str("ucinewgame"),
             UciIn::Position { fen, moves } => {
                 match fen {
                     Some(fen) => write!(f, "position fen {fen}")?,
@@ -134,6 +136,7 @@ impl fmt::Display for UciIn {
                         write!(f, " {}", m)?;
                     }
                 }
+                Ok(())
             }
             UciIn::Go {
                 searchmoves,
@@ -189,10 +192,11 @@ impl fmt::Display for UciIn {
                 if *infinite {
                     f.write_str(" infinite")?;
                 }
+                Ok(())
             }
-            UciIn::Stop => f.write_str("stop")?,
-            UciIn::Ponderhit => f.write_str("ponderhit")?,
-        })
+            UciIn::Stop => f.write_str("stop"),
+            UciIn::Ponderhit => f.write_str("ponderhit"),
+        }
     }
 }
 
@@ -274,11 +278,11 @@ impl UciOut {
 
 impl fmt::Display for UciOut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Ok(match self {
-            UciOut::IdName(name) => write!(f, "id name {name}")?,
-            UciOut::IdAuthor(author) => write!(f, "id author {author}")?,
-            UciOut::Uciok => f.write_str("uciok")?,
-            UciOut::Readyok => f.write_str("readyok")?,
+        match self {
+            UciOut::IdName(name) => write!(f, "id name {name}"),
+            UciOut::IdAuthor(author) => write!(f, "id author {author}"),
+            UciOut::Uciok => f.write_str("uciok"),
+            UciOut::Readyok => f.write_str("readyok"),
             UciOut::Bestmove { m, ponder } => {
                 match m {
                     Some(m) => write!(f, "bestmove {m}")?,
@@ -287,6 +291,7 @@ impl fmt::Display for UciOut {
                 if let Some(ponder) = ponder {
                     write!(f, " ponder {ponder}")?;
                 }
+                Ok(())
             }
             UciOut::Info {
                 multipv,
@@ -368,9 +373,10 @@ impl fmt::Display for UciOut {
                 if let Some(string) = string {
                     write!(f, " string {string}")?;
                 }
+                Ok(())
             }
-            UciOut::Option { name, option } => write!(f, "option name {name} {option}")?,
-        })
+            UciOut::Option { name, option } => write!(f, "option name {name} {option}"),
+        }
     }
 }
 
@@ -943,8 +949,7 @@ fn read(s: &str) -> (Option<&str>, &str) {
     if s.is_empty() {
         (None, s)
     } else {
-        let (head, tail) =
-            s.split_at(memchr2(b' ', b'\t', s.as_bytes()).unwrap_or_else(|| s.len()));
+        let (head, tail) = s.split_at(memchr2(b' ', b'\t', s.as_bytes()).unwrap_or(s.len()));
         (Some(head), tail)
     }
 }

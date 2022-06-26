@@ -129,7 +129,7 @@ pub async fn make_server(
         "/",
         get({
             let engine = Arc::clone(&engine);
-            let secret = secret.clone();
+            let secret = secret;
             move |params, socket| ws::handler(engine, secret, params, socket)
         }),
     );
