@@ -22,8 +22,10 @@ use tokio::{
     time::{interval, MissedTickBehavior},
 };
 
-use crate::engine::{Engine, Session};
-use crate::uci::UciIn;
+use crate::{
+    engine::{Engine, Session},
+    uci::{UciIn, UciOut},
+};
 
 pub struct SharedEngine {
     session: AtomicU64,
@@ -81,7 +83,7 @@ async fn handle_socket(shared_engine: Arc<SharedEngine>, mut socket: WebSocket) 
 
 enum Event {
     Socket(Option<Result<Message, axum::Error>>),
-    Engine(io::Result<Vec<u8>>),
+    Engine(io::Result<UciOut>),
     CheckSession,
     Tick,
 }
@@ -106,7 +108,7 @@ async fn handle_socket_inner(
             if session != Session(shared_engine.session.load(Ordering::SeqCst)) {
                 log::warn!("{}: trying to end session ...", session.0);
                 if engine.is_searching() {
-                    engine.send(session, b"stop").await?;
+                    engine.send(session, UciIn::Stop).await?;
                 }
                 if engine.is_idle() {
                     log::warn!("{}: session ended", session.0);
@@ -154,7 +156,9 @@ async fn handle_socket_inner(
             }
 
             Event::Socket(Some(Ok(Message::Text(text)))) => {
-                if let Some(command) = UciIn::from_line(&text).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))? {
+                if let Some(command) = UciIn::from_line(&text)
+                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?
+                {
                     let mut engine = match locked_engine.take() {
                         Some(engine) => engine,
                         None if command == UciIn::Stop => {
@@ -163,7 +167,8 @@ async fn handle_socket_inner(
                             continue;
                         }
                         None => {
-                            session = Session(shared_engine.session.fetch_add(1, Ordering::SeqCst) + 1);
+                            session =
+                                Session(shared_engine.session.fetch_add(1, Ordering::SeqCst) + 1);
                             log::warn!("{}: starting or restarting session ...", session.0);
                             shared_engine.notify.notify_one();
                             let mut engine = shared_engine.engine.lock().await;
@@ -208,11 +213,9 @@ async fn handle_socket_inner(
                 return Err(io::Error::new(io::ErrorKind::BrokenPipe, err));
             }
 
-            Event::Engine(Ok(msg)) => {
+            Event::Engine(Ok(command)) => {
                 socket
-                    .send(Message::Text(String::from_utf8(msg).map_err(|err| {
-                        io::Error::new(io::ErrorKind::InvalidData, err)
-                    })?))
+                    .send(Message::Text(command.to_string()))
                     .await
                     .map_err(|err| io::Error::new(io::ErrorKind::BrokenPipe, err))?;
             }

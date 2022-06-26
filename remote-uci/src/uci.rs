@@ -22,6 +22,12 @@ impl PartialEq for UciOptionName {
     }
 }
 
+impl PartialEq<&'_ str> for UciOptionName {
+    fn eq(&self, other: &&str) -> bool {
+        self.0.eq_ignore_ascii_case(other)
+    }
+}
+
 impl Hash for UciOptionName {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         for byte in self.0.bytes() {
@@ -53,6 +59,22 @@ pub enum UciOption {
     Combo { default: String, var: Vec<String> },
     Button,
     String { default: String },
+}
+
+impl UciOption {
+    pub fn max(&self) -> Option<i64> {
+        match self {
+            UciOption::Spin { max, .. } => Some(*max),
+            _ => None,
+        }
+    }
+
+    pub fn var(&self) -> Option<&Vec<String>> {
+        match self {
+            UciOption::Combo { var, .. } => Some(var),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for UciOption {
@@ -1028,7 +1050,7 @@ mod tests {
             UciOut::from_line("option name U type combo var uroe co default ce\t\t")?,
             Some(UciOut::Option {
                 name: UciOptionName("U".to_owned()),
-                option: UciOption::Combo  {
+                option: UciOption::Combo {
                     default: "ce".to_owned(),
                     var: vec!["uroe co".to_owned()],
                 }

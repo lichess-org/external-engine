@@ -1,7 +1,3 @@
-#![feature(byte_slice_trim_ascii)]
-#![feature(split_as_slice)]
-#![feature(bool_to_option)]
-
 use clap::Parser;
 use remote_uci::{make_server, Opt};
 
