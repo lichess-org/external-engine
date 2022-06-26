@@ -204,7 +204,7 @@ impl fmt::Display for UciIn {
                     None => f.write_str("position startpos")?,
                 }
                 if !moves.is_empty() {
-                    f.write_str(" moves ")?;
+                    f.write_str(" moves")?;
                     for m in moves {
                         write!(f, " {}", m)?;
                     }
