@@ -620,6 +620,23 @@ impl Parser<'_> {
         })
     }
 
+    fn parse_bestmove(&mut self) -> Result<UciOut, ProtocolError> {
+        Ok(UciOut::Bestmove {
+            m: match self.next() {
+                Some("(none)") | None => None,
+                Some(m) => Some(m.parse()?),
+            },
+            ponder: match self.next() {
+                Some("ponder") => match self.next() {
+                    Some("(none)") | None => None,
+                    Some(m) => Some(m.parse()?),
+                }
+                Some(_) => return Err(ProtocolError::UnexpectedToken),
+                None => None,
+            }
+        })
+    }
+
     fn parse_out(&mut self) -> Result<Option<UciOut>, ProtocolError> {
         Ok(Some(match self.next() {
             Some("id") => match self.next() {
@@ -638,7 +655,7 @@ impl Parser<'_> {
             },
             Some("uciok") => UciOut::Uciok,
             Some("readyok") => UciOut::Readyok,
-            Some("bestmove") => todo!(),
+            Some("bestmove") => self.parse_bestmove()?,
             Some("info") => todo!(),
             Some("option") => self.parse_option()?,
             Some(_) => return Err(ProtocolError::UnexpectedToken),
