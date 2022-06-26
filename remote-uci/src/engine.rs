@@ -5,37 +5,10 @@ use tokio::{
     process::{ChildStdin, ChildStdout, Command},
 };
 
+use crate::uci::UciIn;
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Session(pub u64);
-
-#[derive(Eq, PartialEq)]
-pub enum ClientCommand {
-    Uci,
-    Isready,
-    Go,
-    Stop,
-    Setoption,
-}
-
-impl ClientCommand {
-    pub fn classify(line: &[u8]) -> Option<ClientCommand> {
-        Some(
-            match line
-                .trim_ascii_start()
-                .split(|ch| *ch == b' ')
-                .next()
-                .unwrap()
-            {
-                b"uci" => ClientCommand::Uci,
-                b"isready" => ClientCommand::Isready,
-                b"go" => ClientCommand::Go,
-                b"stop" => ClientCommand::Stop,
-                b"setoption" => ClientCommand::Setoption,
-                _ => return None,
-            },
-        )
-    }
-}
 
 pub enum EngineCommand {
     Uciok,
@@ -165,21 +138,14 @@ impl Engine {
         Ok(info)
     }
 
-    pub async fn send(&mut self, session: Session, line: &[u8]) -> io::Result<()> {
-        if line.contains(&b'\n') {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "disallowed line feed",
-            ));
-        }
-
-        match ClientCommand::classify(line) {
-            Some(ClientCommand::Uci) => self.pending_uciok += 1,
-            Some(ClientCommand::Isready) => self.pending_readyok += 1,
-            Some(ClientCommand::Go) => {
+    pub async fn send(&mut self, session: Session, command: UciIn) -> io::Result<()> {
+        match command {
+            UciIn::Uci => self.pending_uciok += 1,
+            UciIn::Isready => self.pending_readyok += 1,
+            UciIn::Go { .. } => {
                 if self.searching {
                     return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
+                        io::ErrorKind::Other,
                         "already searching",
                     ));
                 }
@@ -188,11 +154,11 @@ impl Engine {
             _ => (),
         }
 
-        log::info!("{} << {}", session.0, String::from_utf8_lossy(line));
-        self.stdin.write_all(line).await?;
-        self.stdin.write_all(b"\r\n").await?;
-        self.stdin.flush().await?;
-        Ok(())
+        let mut buf = command.to_string();
+        log::info!("{} << {}", session.0, buf);
+        buf.push_str("\r\n");
+        self.stdin.write_all(buf.as_bytes()).await?;
+        self.stdin.flush().await
     }
 
     pub async fn recv(&mut self, session: Session) -> io::Result<Vec<u8>> {

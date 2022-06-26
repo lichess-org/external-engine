@@ -22,7 +22,8 @@ use tokio::{
     time::{interval, MissedTickBehavior},
 };
 
-use crate::engine::{ClientCommand, Engine, Session};
+use crate::engine::{Engine, Session};
+use crate::uci::UciIn;
 
 pub struct SharedEngine {
     session: AtomicU64,
@@ -153,32 +154,32 @@ async fn handle_socket_inner(
             }
 
             Event::Socket(Some(Ok(Message::Text(text)))) => {
-                let mut engine = match locked_engine.take() {
-                    Some(engine) => engine,
-                    None if ClientCommand::classify(text.as_bytes())
-                        == Some(ClientCommand::Stop) =>
-                    {
-                        // No need to make a new session just to send a stop
-                        // command.
-                        continue;
-                    }
-                    None => {
-                        session = Session(shared_engine.session.fetch_add(1, Ordering::SeqCst) + 1);
-                        log::warn!("{}: starting or restarting session ...", session.0);
-                        shared_engine.notify.notify_one();
-                        let mut engine = shared_engine.engine.lock().await;
-                        log::warn!("{}: new session started", session.0);
-                        engine.ensure_newgame(session).await?;
+                if let Some(command) = UciIn::from_line(&text).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))? {
+                    let mut engine = match locked_engine.take() {
+                        Some(engine) => engine,
+                        None if command == UciIn::Stop => {
+                            // No need to make a new session just to send a stop
+                            // command.
+                            continue;
+                        }
+                        None => {
+                            session = Session(shared_engine.session.fetch_add(1, Ordering::SeqCst) + 1);
+                            log::warn!("{}: starting or restarting session ...", session.0);
+                            shared_engine.notify.notify_one();
+                            let mut engine = shared_engine.engine.lock().await;
+                            log::warn!("{}: new session started", session.0);
+                            engine.ensure_newgame(session).await?;
 
-                        // TODO: Should track and restore options of the
-                        // session. Not required for lichess.org.
+                            // TODO: Should track and restore options of the
+                            // session. Not required for lichess.org.
 
-                        engine
-                    }
-                };
+                            engine
+                        }
+                    };
 
-                engine.send(session, text.as_bytes()).await?;
-                locked_engine = Some(engine);
+                    engine.send(session, command).await?;
+                    locked_engine = Some(engine);
+                }
             }
             Event::Socket(Some(Ok(Message::Pong(_)))) => missed_pong = false,
             Event::Socket(Some(Ok(Message::Ping(data)))) => socket
