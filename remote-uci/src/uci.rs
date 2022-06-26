@@ -543,16 +543,17 @@ impl<'a> Parser<'a> {
 
     fn parse_position(&mut self) -> Result<UciIn, ProtocolError> {
         Ok(UciIn::Position {
-            fen: match self.until(|t| t == "moves") {
+            fen: match self.next() {
                 Some("startpos") => None,
-                Some(fen) => Some(fen.parse()?),
+                Some("fen") => Some(self.until(|t| t == "moves").ok_or(ProtocolError::UnexpectedEndOfLine)?.parse()?),
+                Some(_) => return Err(ProtocolError::UnexpectedToken),
                 None => return Err(ProtocolError::UnexpectedEndOfLine),
             },
             moves: match self.next() {
                 Some("moves") => self
                     .map(|m| m.parse())
                     .collect::<Result<_, ParseUciError>>()?,
-                Some(_) => unreachable!(),
+                Some(_) => return Err(ProtocolError::UnexpectedToken),
                 None => Vec::new(),
             },
         })
@@ -1096,6 +1097,17 @@ mod tests {
             })
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_position() -> Result<(), ProtocolError> {
+        assert!(matches!(
+            UciIn::from_line(
+                "position fen rn1q1rk1/pbp1bppp/1p2pn2/8/2pP4/2N1PN2/PPB1QPPP/R1B2RK1 b - - 5 9"
+            )?,
+            Some(UciIn::Position { fen: Some(_), .. })
+        ));
         Ok(())
     }
 
