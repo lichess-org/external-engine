@@ -325,7 +325,6 @@ pub enum UciOut {
         seldepth: Option<u32>,
         time: Option<Duration>,
         nodes: Option<u64>,
-        pv: Option<Vec<Uci>>,
         score: Option<Score>,
         currmove: Option<Uci>,
         currmovenumber: Option<u32>,
@@ -336,6 +335,7 @@ pub enum UciOut {
         cpuload: Option<u32>,
         refutation: HashMap<Uci, Vec<Uci>>,
         currline: HashMap<u32, Vec<Uci>>,
+        pv: Option<Vec<Uci>>,
         string: Option<String>,
     },
     Option {
@@ -373,7 +373,6 @@ impl fmt::Display for UciOut {
                 seldepth,
                 time,
                 nodes,
-                pv,
                 score,
                 currmove,
                 currmovenumber,
@@ -384,6 +383,7 @@ impl fmt::Display for UciOut {
                 cpuload,
                 refutation,
                 currline,
+                pv,
                 string,
             } => {
                 f.write_str("info")?;
@@ -401,12 +401,6 @@ impl fmt::Display for UciOut {
                 }
                 if let Some(nodes) = nodes {
                     write!(f, " nodes {nodes}")?;
-                }
-                if let Some(pv) = pv {
-                    f.write_str(" pv")?;
-                    for m in pv {
-                        write!(f, " {m}")?;
-                    }
                 }
                 if let Some(score) = score {
                     write!(f, " score {score}")?;
@@ -444,6 +438,12 @@ impl fmt::Display for UciOut {
                         write!(f, " {m}")?;
                     }
                 }
+                if let Some(pv) = pv {
+                    f.write_str(" pv")?;
+                    for m in pv {
+                        write!(f, " {m}")?;
+                    }
+                }
                 if let Some(string) = string {
                     write!(f, " string {string}")?;
                 }
@@ -456,8 +456,6 @@ impl fmt::Display for UciOut {
 
 #[derive(Error, Debug)]
 pub enum ProtocolError {
-    #[error("unknown engine command")]
-    UnknownEngineCommand,
     #[error("unexpected token")]
     UnexpectedToken,
     #[error("unexpected line break in uci command")]
@@ -546,7 +544,11 @@ impl<'a> Parser<'a> {
         Ok(UciIn::Position {
             fen: match self.next() {
                 Some("startpos") => None,
-                Some("fen") => Some(self.until(|t| t == "moves").ok_or(ProtocolError::UnexpectedEndOfLine)?.parse()?),
+                Some("fen") => Some(
+                    self.until(|t| t == "moves")
+                        .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                        .parse()?,
+                ),
                 Some(_) => return Err(ProtocolError::UnexpectedToken),
                 None => return Err(ProtocolError::UnexpectedEndOfLine),
             },
@@ -848,7 +850,6 @@ impl<'a> Parser<'a> {
         let mut seldepth = None;
         let mut time = None;
         let mut nodes = None;
-        let mut pv = None;
         let mut score = None;
         let mut currmove = None;
         let mut currmovenumber = None;
@@ -859,6 +860,7 @@ impl<'a> Parser<'a> {
         let mut cpuload = None;
         let mut refutation = HashMap::new();
         let mut currline = HashMap::new();
+        let mut pv = None;
         let mut string = None;
         loop {
             match self.next() {
@@ -897,7 +899,6 @@ impl<'a> Parser<'a> {
                             .parse()?,
                     )
                 }
-                Some("pv") => pv = Some(self.parse_moves()),
                 Some("score") => score = Some(self.parse_score()?),
                 Some("currmove") => {
                     currmove = Some(
@@ -964,6 +965,7 @@ impl<'a> Parser<'a> {
                         self.parse_moves(),
                     );
                 }
+                Some("pv") => pv = Some(self.parse_moves()),
                 Some("string") => {
                     string = Some(self.until(|_| false).unwrap_or_default().to_owned())
                 }
@@ -977,7 +979,6 @@ impl<'a> Parser<'a> {
             seldepth,
             time,
             nodes,
-            pv,
             score,
             currmove,
             currmovenumber,
@@ -988,33 +989,37 @@ impl<'a> Parser<'a> {
             cpuload,
             refutation,
             currline,
+            pv,
             string,
+        })
+    }
+
+    fn parse_id(&mut self) -> Result<UciOut, ProtocolError> {
+        Ok(match self.next() {
+            Some("name") => UciOut::IdName(
+                self.until(|_| false)
+                    .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                    .to_owned(),
+            ),
+            Some("author") => UciOut::IdAuthor(
+                self.until(|_| false)
+                    .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                    .to_owned(),
+            ),
+            Some(_) => return Err(ProtocolError::UnexpectedToken),
+            None => return Err(ProtocolError::UnexpectedEndOfLine),
         })
     }
 
     fn parse_out(&mut self) -> Result<Option<UciOut>, ProtocolError> {
         Ok(Some(match self.next() {
-            Some("id") => match self.next() {
-                Some("name") => UciOut::IdName(
-                    self.until(|_| false)
-                        .ok_or(ProtocolError::UnexpectedEndOfLine)?
-                        .to_owned(),
-                ),
-                Some("author") => UciOut::IdAuthor(
-                    self.until(|_| false)
-                        .ok_or(ProtocolError::UnexpectedEndOfLine)?
-                        .to_owned(),
-                ),
-                Some(_) => return Err(ProtocolError::UnexpectedToken),
-                None => return Err(ProtocolError::UnexpectedEndOfLine),
-            },
+            Some("id") => self.parse_id()?,
             Some("uciok") => UciOut::Uciok,
             Some("readyok") => UciOut::Readyok,
             Some("bestmove") => self.parse_bestmove()?,
             Some("info") => self.parse_info()?,
             Some("option") => self.parse_option()?,
-            Some(_) => return Err(ProtocolError::UnknownEngineCommand),
-            None => return Ok(None),
+            Some(_) | None => return Ok(None),
         }))
     }
 }

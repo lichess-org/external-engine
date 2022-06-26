@@ -140,12 +140,14 @@ impl Engine {
             let line = line.trim_end_matches(|c| c == '\r' || c == '\n');
 
             let command = match UciOut::from_line(line) {
-                Err(ProtocolError::UnknownEngineCommand) => {
+                Err(err) => {
+                    log::error!("{} >> {}", session.0, line);
+                    return Err(io::Error::new(io::ErrorKind::InvalidData, err));
+                }
+                Ok(None) => {
                     log::warn!("{} >> {}", session.0, line);
                     continue;
-                }
-                Err(err) => return Err(io::Error::new(io::ErrorKind::InvalidData, err)),
-                Ok(None) => continue,
+                },
                 Ok(Some(command)) => command,
             };
 
