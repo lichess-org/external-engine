@@ -1,0 +1,21 @@
+[package]
+name = "remote-uci-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.remote-uci]
+path = ".."
+
+[workspace]
+members = ["."] # Let fuzzing suite not interfere with workspaces
+
+[[bin]]
+name = "uci_in"
+path = "fuzz_targets/uci_in.rs"

@@ -37,7 +37,7 @@ impl fmt::Display for UciOptionName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct UciOptionValue(String);
+pub struct UciOptionValue(String);
 
 enum UciOption {
     Check { default: bool },
@@ -48,7 +48,7 @@ enum UciOption {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum UciIn {
+pub enum UciIn {
     Uci,
     Isready,
     Setoption {
@@ -125,7 +125,7 @@ enum UciOut {
 }
 
 #[derive(Error, Debug)]
-enum ProtocolError {
+pub enum ProtocolError {
     #[error("unexpected token")]
     UnexpectedToken,
     #[error("unexpected line break in uci command")]
@@ -142,7 +142,7 @@ enum ProtocolError {
     InvalidInteger(#[from] ParseIntError),
 }
 
-struct Parser<'a> {
+pub struct Parser<'a> {
     s: &'a str,
 }
 
