@@ -175,8 +175,8 @@ struct Score {
 }
 
 enum UciOut {
-    IdName,
-    IdAuthor,
+    IdName(String),
+    IdAuthor(String),
     Uciok,
     Readyok,
     Bestmove {
@@ -433,6 +433,44 @@ impl Parser<'_> {
             None => return Ok(None),
         }))
     }
+
+    fn parse_option(&mut self) -> Result<UciOut, ProtocolError> {
+        Ok(match self.next() {
+            Some("name") => {
+                let name = self.until("type").ok_or(ProtocolError::UnexpectedEndOfLine)?;
+                self.next().ok_or(ProtocolError::UnexpectedEndOfLine)?; // type
+                match self.next() {
+                    Some("check") => todo!()
+                    Some("spin") => todo!()
+                    Some("combo") => todo!()
+                    Some("button") => todo!()
+                    Some("string") => todo!()
+                    Some(_) => return Err(ProtocolError::UnexpectedToken),
+                    None => return Err(ProtocolError::UnexpectedEndOfLine),
+                }
+            }
+            Some(_) => return Err(ProtocolError::UnexpectedToken),
+            None => return Err(ProtocolError::UnexpectedEndOfLine),
+        })
+    }
+
+    fn parse_out(&mut self) -> Result<Option<UciOut>, ProtocolError> {
+        Ok(Some(match self.next() {
+            Some("id") => match self.next() {
+                Some("name") => UciOut::IdName(self.tail().ok_or(ProtocolError::UnexpectedEndOfLine)?.to_owned()),
+                Some("author") => UciOut::IdAuthor(self.tail().ok_or(ProtocolError::UnexpectedEndOfLine)?.to_owned()),
+                Some(_) => return Err(ProtocolError::UnexpectedToken),
+                None => return Err(ProtocolError::UnexpectedEndOfLine),
+            },
+            Some("uciok") => UciOut::Uciok,
+            Some("readyok") => UciOut::Readyok,
+            Some("bestmove") => todo!(),
+            Some("info") => todo!(),
+            Some("option") => self.parse_option()?,
+            Some(_) => return Err(ProtocolError::UnexpectedToken),
+            None => return Ok(None),
+        }))
+    }
 }
 
 fn is_separator(c: char) -> bool {
@@ -499,18 +537,16 @@ mod tests {
 
     #[test]
     fn test_setoption() -> Result<(), ProtocolError> {
-        let mut parser = Parser::new("setoption name Skill Level value 10")?;
         assert_eq!(
-            parser.parse_in()?,
+            UciIn::from_line("setoption name Skill Level value 10")?,
             Some(UciIn::Setoption {
                 name: UciOptionName("skill level".to_owned()),
                 value: Some(UciOptionValue("10".to_owned()))
             })
         );
 
-        let mut parser = Parser::new("setoption name Clear Hash")?;
         assert_eq!(
-            parser.parse_in()?,
+            UciIn::from_line("setoption name Clear Hash")?,
             Some(UciIn::Setoption {
                 name: UciOptionName("clEAR haSH".to_owned()),
                 value: None
