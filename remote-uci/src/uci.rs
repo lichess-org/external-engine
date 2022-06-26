@@ -485,18 +485,18 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn parse_searchmoves(&mut self) -> Vec<Uci> {
-        let mut searchmoves = Vec::new();
+    fn parse_moves(&mut self) -> Vec<Uci> {
+        let mut moves = Vec::new();
         while let Some(m) = self.peek() {
             match m.parse() {
                 Ok(uci) => {
                     self.next();
-                    searchmoves.push(uci);
+                    moves.push(uci);
                 }
                 Err(_) => break,
             }
         }
-        searchmoves
+        moves
     }
 
     fn parse_go(&mut self) -> Result<UciIn, ProtocolError> {
@@ -549,7 +549,7 @@ impl<'a> Parser<'a> {
                 Some("btime") => btime = Some(self.parse_millis()?),
                 Some("winc") => winc = Some(self.parse_millis()?),
                 Some("binc") => binc = Some(self.parse_millis()?),
-                Some("searchmoves") => searchmoves = Some(self.parse_searchmoves()),
+                Some("searchmoves") => searchmoves = Some(self.parse_moves()),
                 Some(_) => return Err(ProtocolError::UnexpectedToken),
                 None => break,
             }
@@ -722,6 +722,160 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_score(&mut self) -> Result<Score, ProtocolError> {
+        todo!()
+    }
+
+    fn parse_info(&mut self) -> Result<UciOut, ProtocolError> {
+        let mut multipv = None;
+        let mut depth = None;
+        let mut seldepth = None;
+        let mut time = None;
+        let mut nodes = None;
+        let mut pv = None;
+        let mut score = None;
+        let mut currmove = None;
+        let mut currmovenumber = None;
+        let mut hashfull = None;
+        let mut nps = None;
+        let mut tbhits = None;
+        let mut sbhits = None;
+        let mut cpuload = None;
+        let mut refutation = HashMap::new();
+        let mut currline = HashMap::new();
+        let mut string = None;
+        loop {
+            match self.next() {
+                Some("multipv") => {
+                    multipv = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("depth") => {
+                    depth = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("seldepth") => {
+                    seldepth = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("time") => {
+                    time = Some(Duration::from_millis(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    ))
+                }
+                Some("nodes") => {
+                    nodes = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("pv") => pv = Some(self.parse_moves()),
+                Some("score") => score = Some(self.parse_score()?),
+                Some("currmove") => {
+                    currmove = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("currmovenumber") => {
+                    currmovenumber = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("hashfull") => {
+                    hashfull = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("nps") => {
+                    nps = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("tbhits") => {
+                    tbhits = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("sbhits") => {
+                    sbhits = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("cpuload") => {
+                    cpuload = Some(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                    )
+                }
+                Some("refutation") => {
+                    refutation.insert(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                        self.parse_moves(),
+                    );
+                }
+                Some("currline") => {
+                    currline.insert(
+                        self.next()
+                            .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                            .parse()?,
+                        self.parse_moves(),
+                    );
+                }
+                Some("string") => {
+                    string = Some(self.until(|_| false).unwrap_or_default().to_owned())
+                }
+                Some(_) => return Err(ProtocolError::UnexpectedToken),
+                None => break,
+            }
+        }
+        Ok(UciOut::Info {
+            multipv,
+            depth,
+            seldepth,
+            time,
+            nodes,
+            pv,
+            score,
+            currmove,
+            currmovenumber,
+            hashfull,
+            nps,
+            tbhits,
+            sbhits,
+            cpuload,
+            refutation,
+            currline,
+            string,
+        })
+    }
+
     fn parse_out(&mut self) -> Result<Option<UciOut>, ProtocolError> {
         Ok(Some(match self.next() {
             Some("id") => match self.next() {
@@ -741,7 +895,7 @@ impl<'a> Parser<'a> {
             Some("uciok") => UciOut::Uciok,
             Some("readyok") => UciOut::Readyok,
             Some("bestmove") => self.parse_bestmove()?,
-            Some("info") => todo!(),
+            Some("info") => self.parse_info()?,
             Some("option") => self.parse_option()?,
             Some(_) => return Err(ProtocolError::UnexpectedToken),
             None => return Ok(None),
