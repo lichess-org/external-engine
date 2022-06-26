@@ -73,7 +73,6 @@ impl Engine {
                     } else if name == "UCI_Variant" {
                         info.variants = option.var().cloned().unwrap_or_default();
                     }
-                    self.options.insert(name, option);
                 }
                 _ => (),
             }
@@ -83,7 +82,10 @@ impl Engine {
 
     pub async fn send(&mut self, session: Session, command: UciIn) -> io::Result<()> {
         match command {
-            UciIn::Uci => self.pending_uciok += 1,
+            UciIn::Uci => {
+                self.pending_uciok += 1;
+                self.options.clear();
+            },
             UciIn::Isready => self.pending_readyok += 1,
             UciIn::Go { .. } => {
                 if self.searching {
@@ -142,6 +144,9 @@ impl Engine {
                 UciOut::Uciok => self.pending_uciok = self.pending_uciok.saturating_sub(1),
                 UciOut::Readyok => self.pending_readyok = self.pending_readyok.saturating_sub(1),
                 UciOut::Bestmove { .. } => self.searching = false,
+                UciOut::Option { ref name, ref option } => {
+                    self.options.insert(name.clone(), option.clone());
+                },
                 _ => (),
             }
 
