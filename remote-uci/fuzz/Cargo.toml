@@ -19,3 +19,7 @@ members = ["."] # Let fuzzing suite not interfere with workspaces
 [[bin]]
 name = "uci_in"
 path = "fuzz_targets/uci_in.rs"
+
+[[bin]]
+name = "uci_out"
+path = "fuzz_targets/uci_out.rs"

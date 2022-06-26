@@ -45,7 +45,7 @@ impl fmt::Display for UciOptionValue {
     }
 }
 
-enum UciOption {
+pub enum UciOption {
     Check { default: bool },
     Spin { default: i64, min: i64, max: i64 },
     Combo { default: String, var: Vec<String> },
@@ -162,19 +162,19 @@ impl fmt::Display for UciIn {
     }
 }
 
-enum Eval {
+pub enum Eval {
     Cp(i64),
     Mate(i32),
     MateGiven,
 }
 
-struct Score {
+pub struct Score {
     eval: Eval,
     lowerbound: bool,
     upperbound: bool,
 }
 
-enum UciOut {
+pub enum UciOut {
     IdName(String),
     IdAuthor(String),
     Uciok,
@@ -206,6 +206,12 @@ enum UciOut {
         name: UciOptionName,
         option: UciOption,
     },
+}
+
+impl UciOut {
+    pub fn from_line(s: &str) -> Result<Option<UciOut>, ProtocolError> {
+        Parser::new(s)?.parse_out()
+    }
 }
 
 #[derive(Error, Debug)]
@@ -440,11 +446,11 @@ impl Parser<'_> {
                 let name = self.until("type").ok_or(ProtocolError::UnexpectedEndOfLine)?;
                 self.next().ok_or(ProtocolError::UnexpectedEndOfLine)?; // type
                 match self.next() {
-                    Some("check") => todo!()
-                    Some("spin") => todo!()
-                    Some("combo") => todo!()
-                    Some("button") => todo!()
-                    Some("string") => todo!()
+                    Some("check") => todo!(),
+                    Some("spin") => todo!(),
+                    Some("combo") => todo!(),
+                    Some("button") => todo!(),
+                    Some("string") => todo!(),
                     Some(_) => return Err(ProtocolError::UnexpectedToken),
                     None => return Err(ProtocolError::UnexpectedEndOfLine),
                 }
