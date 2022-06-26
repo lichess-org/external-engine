@@ -966,11 +966,11 @@ where
             let (head, tail) = s.split_at(end);
             if let (Some(next_token), _) = read(tail) {
                 if pred(next_token) {
-                    return (Some(head), tail);
+                    return (Some(head.trim_end_matches(is_separator)), tail);
                 }
             }
         }
-        (Some(s), "")
+        (Some(s.trim_end_matches(is_separator)), "")
     }
 }
 
@@ -1016,6 +1016,22 @@ mod tests {
             Some(UciIn::Setoption {
                 name: UciOptionName("clEAR haSH".to_owned()),
                 value: None
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_option() -> Result<(), ProtocolError> {
+        assert_eq!(
+            UciOut::from_line("option name U type combo var uroe co default ce\t\t")?,
+            Some(UciOut::Option {
+                name: UciOptionName("U".to_owned()),
+                option: UciOption::Combo  {
+                    default: "ce".to_owned(),
+                    var: vec!["uroe co".to_owned()],
+                }
             })
         );
 
