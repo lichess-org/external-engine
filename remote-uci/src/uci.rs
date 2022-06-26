@@ -19,6 +19,7 @@ pub struct UciOptionName(String);
 impl UciOptionName {
     pub fn is_safe(&self) -> bool {
         *self == "Hash"
+            || *self == "Threads"
             || *self == "Ponder"
             || *self == "MultiPV"
             || *self == "UCI_ShowCurrLine"
