@@ -53,6 +53,25 @@ pub enum UciOption {
     String { default: String },
 }
 
+impl fmt::Display for UciOption {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(match self {
+            UciOption::Check { default } => write!(f, "type check default {default}")?,
+            UciOption::Spin { default, min, max } => {
+                write!(f, "type spin default {default} min {min} max {max}")?
+            }
+            UciOption::Combo { default, var } => {
+                write!(f, "type combo default {default}")?;
+                for v in var {
+                    write!(f, " var {v}")?;
+                }
+            }
+            UciOption::Button => f.write_str("type button")?,
+            UciOption::String { default } => write!(f, "type string default {default}")?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UciIn {
     Uci,
@@ -114,7 +133,20 @@ impl fmt::Display for UciIn {
                     }
                 }
             }
-            UciIn::Go { searchmoves, ponder, wtime, btime, winc, binc, movestogo, depth, nodes, mate, movetime, infinite } => {
+            UciIn::Go {
+                searchmoves,
+                ponder,
+                wtime,
+                btime,
+                winc,
+                binc,
+                movestogo,
+                depth,
+                nodes,
+                mate,
+                movetime,
+                infinite,
+            } => {
                 f.write_str("go")?;
                 if let Some(searchmoves) = searchmoves {
                     f.write_str(" searchmoves")?;
@@ -168,10 +200,33 @@ pub enum Eval {
     MateGiven,
 }
 
+impl fmt::Display for Eval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Eval::Cp(cp) => write!(f, "cp {cp}"),
+            Eval::Mate(mate) => write!(f, "mate {mate}"),
+            Eval::MateGiven => f.write_str("mate 0"),
+        }
+    }
+}
+
 pub struct Score {
     eval: Eval,
     lowerbound: bool,
     upperbound: bool,
+}
+
+impl fmt::Display for Score {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.eval.fmt(f)?;
+        if self.lowerbound {
+            f.write_str(" lowerbound")?;
+        }
+        if self.upperbound {
+            f.write_str(" upperbound")?;
+        }
+        Ok(())
+    }
 }
 
 pub enum UciOut {
@@ -211,6 +266,28 @@ pub enum UciOut {
 impl UciOut {
     pub fn from_line(s: &str) -> Result<Option<UciOut>, ProtocolError> {
         Parser::new(s)?.parse_out()
+    }
+}
+
+impl fmt::Display for UciOut {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(match self {
+            UciOut::IdName(name) => write!(f, "id name {name}")?,
+            UciOut::IdAuthor(author) => write!(f, "id author {author}")?,
+            UciOut::Uciok => f.write_str("uciok")?,
+            UciOut::Readyok => f.write_str("readyok")?,
+            UciOut::Bestmove { m, ponder } => {
+                match m {
+                    Some(m) => write!(f, "bestmove {m}")?,
+                    None => f.write_str("bestmove (none)")?,
+                }
+                if let Some(ponder) = ponder {
+                    write!(f, " ponder {ponder}")?;
+                }
+            }
+            UciOut::Info { .. } => todo!(),
+            UciOut::Option { name, option } => write!(f, "option name {name} {option}")?,
+        })
     }
 }
 
@@ -443,7 +520,9 @@ impl Parser<'_> {
     fn parse_option(&mut self) -> Result<UciOut, ProtocolError> {
         Ok(match self.next() {
             Some("name") => {
-                let name = self.until("type").ok_or(ProtocolError::UnexpectedEndOfLine)?;
+                let name = self
+                    .until("type")
+                    .ok_or(ProtocolError::UnexpectedEndOfLine)?;
                 self.next().ok_or(ProtocolError::UnexpectedEndOfLine)?; // type
                 match self.next() {
                     Some("check") => todo!(),
@@ -463,8 +542,16 @@ impl Parser<'_> {
     fn parse_out(&mut self) -> Result<Option<UciOut>, ProtocolError> {
         Ok(Some(match self.next() {
             Some("id") => match self.next() {
-                Some("name") => UciOut::IdName(self.tail().ok_or(ProtocolError::UnexpectedEndOfLine)?.to_owned()),
-                Some("author") => UciOut::IdAuthor(self.tail().ok_or(ProtocolError::UnexpectedEndOfLine)?.to_owned()),
+                Some("name") => UciOut::IdName(
+                    self.tail()
+                        .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                        .to_owned(),
+                ),
+                Some("author") => UciOut::IdAuthor(
+                    self.tail()
+                        .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                        .to_owned(),
+                ),
                 Some(_) => return Err(ProtocolError::UnexpectedToken),
                 None => return Err(ProtocolError::UnexpectedEndOfLine),
             },
