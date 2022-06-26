@@ -1,11 +1,12 @@
-use std::{io, path::PathBuf, process::Stdio};
+use std::{collections::HashMap, io, path::PathBuf, process::Stdio};
 
+use shakmaty::variant::{Variant, VariantPosition};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     process::{ChildStdin, ChildStdout, Command},
 };
 
-use crate::uci::{UciIn, UciOut};
+use crate::uci::{UciIn, UciOption, UciOptionName, UciOut};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Session(pub u64);
@@ -14,6 +15,9 @@ pub struct Engine {
     pending_uciok: u64,
     pending_readyok: u64,
     searching: bool,
+    variant: Variant,
+    pos: VariantPosition,
+    options: HashMap<UciOptionName, UciOption>,
     stdin: BufWriter<ChildStdin>,
     stdout: BufReader<ChildStdout>,
 }
@@ -40,6 +44,9 @@ impl Engine {
                 pending_uciok: 0,
                 pending_readyok: 0,
                 searching: false,
+                variant: Variant::Chess,
+                pos: VariantPosition::new(Variant::Chess),
+                options: HashMap::new(),
                 stdin: BufWriter::new(process.stdin.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdin closed")
                 })?),
@@ -66,6 +73,7 @@ impl Engine {
                     } else if name == "UCI_Variant" {
                         info.variants = option.var().cloned().unwrap_or_default();
                     }
+                    self.options.insert(name, option);
                 }
                 _ => (),
             }
@@ -82,6 +90,16 @@ impl Engine {
                     return Err(io::Error::new(io::ErrorKind::Other, "already searching"));
                 }
                 self.searching = true;
+            }
+            UciIn::Setoption {
+                ref name,
+                ref value,
+            } => {
+                self.options
+                    .get(name)
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "unknown option"))?
+                    .validate(value.clone())
+                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
             }
             _ => (),
         }
