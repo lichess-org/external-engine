@@ -439,6 +439,8 @@ impl fmt::Display for UciOut {
 
 #[derive(Error, Debug)]
 pub enum ProtocolError {
+    #[error("unknown engine command")]
+    UnknownEngineCommand,
     #[error("unexpected token")]
     UnexpectedToken,
     #[error("unexpected line break in uci command")]
@@ -993,7 +995,7 @@ impl<'a> Parser<'a> {
             Some("bestmove") => self.parse_bestmove()?,
             Some("info") => self.parse_info()?,
             Some("option") => self.parse_option()?,
-            Some(_) => return Err(ProtocolError::UnexpectedToken),
+            Some(_) => return Err(ProtocolError::UnknownEngineCommand),
             None => return Ok(None),
         }))
     }

@@ -6,7 +6,7 @@ use tokio::{
     process::{ChildStdin, ChildStdout, Command},
 };
 
-use crate::uci::{UciIn, UciOption, UciOptionName, UciOut};
+use crate::uci::{ProtocolError, UciIn, UciOption, UciOptionName, UciOut};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Session(pub u64);
@@ -117,26 +117,31 @@ impl Engine {
             if self.stdout.read_line(&mut line).await? == 0 {
                 return Err(io::ErrorKind::UnexpectedEof.into());
             }
-            if let Some(command) =
-                UciOut::from_line(line.trim_end_matches(|c| c == '\r' || c == '\n'))
-                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?
-            {
-                match command {
-                    UciOut::Info { .. } => log::debug!("{} >> {}", session.0, command),
-                    _ => log::info!("{} >> {}", session.0, command),
-                }
+            let line = line.trim_end_matches(|c| c == '\r' || c == '\n');
 
-                match command {
-                    UciOut::Uciok => self.pending_uciok = self.pending_uciok.saturating_sub(1),
-                    UciOut::Readyok => {
-                        self.pending_readyok = self.pending_readyok.saturating_sub(1)
-                    }
-                    UciOut::Bestmove { .. } => self.searching = false,
-                    _ => (),
+            let command = match UciOut::from_line(line) {
+                Err(ProtocolError::UnknownEngineCommand) => {
+                    log::info!("{} >> {}", session.0, line);
+                    continue;
                 }
+                Err(err) => return Err(io::Error::new(io::ErrorKind::InvalidData, err)),
+                Ok(None) => continue,
+                Ok(Some(command)) => command,
+            };
 
-                return Ok(command);
+            match command {
+                UciOut::Info { .. } => log::debug!("{} >> {}", session.0, command),
+                _ => log::info!("{} >> {}", session.0, command),
             }
+
+            match command {
+                UciOut::Uciok => self.pending_uciok = self.pending_uciok.saturating_sub(1),
+                UciOut::Readyok => self.pending_readyok = self.pending_readyok.saturating_sub(1),
+                UciOut::Bestmove { .. } => self.searching = false,
+                _ => (),
+            }
+
+            return Ok(command);
         }
     }
 
