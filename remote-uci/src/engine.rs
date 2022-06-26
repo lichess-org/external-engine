@@ -82,10 +82,24 @@ impl Engine {
 
     pub async fn send(&mut self, session: Session, command: UciIn) -> io::Result<()> {
         match command {
+            UciIn::Setoption { ref name, .. } if !name.is_safe() => {
+                log::error!(
+                    "{}: rejected potentially unsafe option: {}",
+                    session.0,
+                    command
+                );
+                Ok(())
+            }
+            _ => self.send_dangerous(session, command).await,
+        }
+    }
+
+    pub async fn send_dangerous(&mut self, session: Session, command: UciIn) -> io::Result<()> {
+        match command {
             UciIn::Uci => {
                 self.pending_uciok += 1;
                 self.options.clear();
-            },
+            }
             UciIn::Isready => self.pending_readyok += 1,
             UciIn::Go { .. } => {
                 if self.searching {
@@ -103,7 +117,7 @@ impl Engine {
                         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
                 }
                 None => {
-                    log::warn!("Ignoring unknown option: {command}");
+                    log::warn!("{}: ignoring unknown option: {}", session.0, command);
                     return Ok(());
                 }
             },
@@ -144,9 +158,12 @@ impl Engine {
                 UciOut::Uciok => self.pending_uciok = self.pending_uciok.saturating_sub(1),
                 UciOut::Readyok => self.pending_readyok = self.pending_readyok.saturating_sub(1),
                 UciOut::Bestmove { .. } => self.searching = false,
-                UciOut::Option { ref name, ref option } => {
+                UciOut::Option {
+                    ref name,
+                    ref option,
+                } => {
                     self.options.insert(name.clone(), option.clone());
-                },
+                }
                 _ => (),
             }
 

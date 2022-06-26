@@ -16,6 +16,22 @@ use thiserror::Error;
 #[derive(Clone, Debug, Eq)]
 pub struct UciOptionName(String);
 
+impl UciOptionName {
+    pub fn is_safe(&self) -> bool {
+        *self == "Hash"
+            || *self == "Ponder"
+            || *self == "MultiPV"
+            || *self == "UCI_ShowCurrLine"
+            || *self == "UCI_ShowRefutations"
+            || *self == "UCI_LimitStrength"
+            || *self == "UCI_Elo"
+            || *self == "UCI_AnalyseMode"
+            || *self == "UCI_Opponent"
+            || *self == "UCI_Chess960"
+            || *self == "Analysis Contempt"
+    }
+}
+
 impl PartialEq for UciOptionName {
     fn eq(&self, other: &UciOptionName) -> bool {
         self.0.eq_ignore_ascii_case(&other.0)
