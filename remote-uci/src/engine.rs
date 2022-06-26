@@ -152,6 +152,11 @@ impl Engine {
             };
 
             match command {
+                UciOut::Info { pv: None, string: None, score: None, .. } => {
+                    // Skip noise.
+                    log::trace!("{} >> {}", session.0, command);
+                    continue;
+                }
                 UciOut::Info { .. } => log::debug!("{} >> {}", session.0, command),
                 _ => log::info!("{} >> {}", session.0, command),
             }
