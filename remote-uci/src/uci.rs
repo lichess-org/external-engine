@@ -624,7 +624,43 @@ impl<'a> Parser<'a> {
                     None => return Err(ProtocolError::UnexpectedEndOfLine),
                 },
             },
-            Some("spin") => todo!(),
+            Some("spin") => {
+                let mut default = None;
+                let mut min = None;
+                let mut max = None;
+                loop {
+                    match self.next() {
+                        Some("default") => {
+                            default = Some(
+                                self.next()
+                                    .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                                    .parse()?,
+                            )
+                        }
+                        Some("min") => {
+                            min = Some(
+                                self.next()
+                                    .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                                    .parse()?,
+                            )
+                        }
+                        Some("max") => {
+                            max = Some(
+                                self.next()
+                                    .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                                    .parse()?,
+                            )
+                        }
+                        Some(_) => return Err(ProtocolError::UnexpectedToken),
+                        None => break,
+                    }
+                }
+                UciOption::Spin {
+                    default: default.ok_or(ProtocolError::UnexpectedEndOfLine)?,
+                    min: min.ok_or(ProtocolError::UnexpectedEndOfLine)?,
+                    max: max.ok_or(ProtocolError::UnexpectedEndOfLine)?,
+                }
+            }
             Some("combo") => {
                 let mut default = None;
                 let mut var = Vec::new();
