@@ -39,6 +39,12 @@ impl fmt::Display for UciOptionName {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UciOptionValue(String);
 
+impl fmt::Display for UciOptionValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 enum UciOption {
     Check { default: bool },
     Spin { default: i64, min: i64, max: i64 },
@@ -76,6 +82,84 @@ pub enum UciIn {
     },
     Stop,
     Ponderhit,
+}
+
+impl UciIn {
+    pub fn from_line(s: &str) -> Result<Option<UciIn>, ProtocolError> {
+        Parser::new(s)?.parse_in()
+    }
+}
+
+impl fmt::Display for UciIn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(match self {
+            UciIn::Uci => f.write_str("uci")?,
+            UciIn::Isready => f.write_str("isready")?,
+            UciIn::Setoption { name, value } => {
+                write!(f, "setoption name {name}")?;
+                if let Some(value) = value {
+                    write!(f, " value {value}")?;
+                }
+            }
+            UciIn::Ucinewgame => f.write_str("ucinewgame")?,
+            UciIn::Position { fen, moves } => {
+                match fen {
+                    Some(fen) => write!(f, "position fen {fen}")?,
+                    None => f.write_str("position startpos")?,
+                }
+                if !moves.is_empty() {
+                    f.write_str(" moves ")?;
+                    for m in moves {
+                        write!(f, " {}", m)?;
+                    }
+                }
+            }
+            UciIn::Go { searchmoves, ponder, wtime, btime, winc, binc, movestogo, depth, nodes, mate, movetime, infinite } => {
+                f.write_str("go")?;
+                if let Some(searchmoves) = searchmoves {
+                    f.write_str(" searchmoves")?;
+                    for m in searchmoves {
+                        write!(f, " {}", m)?;
+                    }
+                }
+                if *ponder {
+                    f.write_str(" ponder")?;
+                }
+                if let Some(wtime) = wtime {
+                    write!(f, " wtime {}", wtime.as_millis())?;
+                }
+                if let Some(btime) = btime {
+                    write!(f, " btime {}", btime.as_millis())?;
+                }
+                if let Some(winc) = winc {
+                    write!(f, " winc {}", winc.as_millis())?;
+                }
+                if let Some(binc) = binc {
+                    write!(f, " binc {}", binc.as_millis())?;
+                }
+                if let Some(movestogo) = movestogo {
+                    write!(f, " movestogo {movestogo}")?;
+                }
+                if let Some(depth) = depth {
+                    write!(f, " depth {depth}")?;
+                }
+                if let Some(nodes) = nodes {
+                    write!(f, " nodes {nodes}")?;
+                }
+                if let Some(mate) = mate {
+                    write!(f, " mate {mate}")?;
+                }
+                if let Some(movetime) = movetime {
+                    write!(f, " movetime {}", movetime.as_millis())?;
+                }
+                if *infinite {
+                    f.write_str(" infinite")?;
+                }
+            }
+            UciIn::Stop => f.write_str("stop")?,
+            UciIn::Ponderhit => f.write_str("ponderhit")?,
+        })
+    }
 }
 
 enum Eval {
@@ -142,7 +226,7 @@ pub enum ProtocolError {
     InvalidInteger(#[from] ParseIntError),
 }
 
-pub struct Parser<'a> {
+struct Parser<'a> {
     s: &'a str,
 }
 
@@ -320,7 +404,7 @@ impl Parser<'_> {
         })
     }
 
-    pub fn parse_in(&mut self) -> Result<Option<UciIn>, ProtocolError> {
+    fn parse_in(&mut self) -> Result<Option<UciIn>, ProtocolError> {
         Ok(Some(match self.next() {
             Some("uci") => {
                 self.end()?;

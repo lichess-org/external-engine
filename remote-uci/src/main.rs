@@ -2,13 +2,8 @@
 #![feature(split_as_slice)]
 #![feature(bool_to_option)]
 
-mod engine;
-mod uci;
-mod ws;
-
-use remote_uci::make_server;
-use remote_uci::Opt;
 use clap::Parser;
+use remote_uci::{make_server, Opt};
 
 #[tokio::main]
 async fn main() {
