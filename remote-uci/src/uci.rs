@@ -200,7 +200,6 @@ impl fmt::Display for UciIn {
 pub enum Eval {
     Cp(i64),
     Mate(i32),
-    MateGiven,
 }
 
 impl fmt::Display for Eval {
@@ -208,7 +207,6 @@ impl fmt::Display for Eval {
         match self {
             Eval::Cp(cp) => write!(f, "cp {cp}"),
             Eval::Mate(mate) => write!(f, "mate {mate}"),
-            Eval::MateGiven => f.write_str("mate 0"),
         }
     }
 }
@@ -723,7 +721,40 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_score(&mut self) -> Result<Score, ProtocolError> {
-        todo!()
+        let eval = match self.next() {
+            Some("cp") => Eval::Cp(
+                self.next()
+                    .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                    .parse()?,
+            ),
+            Some("mate") => Eval::Mate(
+                self.next()
+                    .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                    .parse()?,
+            ),
+            Some(_) => return Err(ProtocolError::UnexpectedToken),
+            None => return Err(ProtocolError::UnexpectedEndOfLine),
+        };
+        let mut lowerbound = false;
+        let mut upperbound = false;
+        while let Some(token) = self.peek() {
+            match token {
+                "lowerbound" => {
+                    self.next();
+                    lowerbound = true;
+                }
+                "upperbound" => {
+                    self.next();
+                    upperbound = true;
+                }
+                _ => break,
+            }
+        }
+        Ok(Score {
+            eval,
+            lowerbound,
+            upperbound,
+        })
     }
 
     fn parse_info(&mut self) -> Result<UciOut, ProtocolError> {
