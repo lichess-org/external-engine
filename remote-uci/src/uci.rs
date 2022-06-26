@@ -46,6 +46,7 @@ impl fmt::Display for UciOptionValue {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UciOption {
     Check { default: bool },
     Spin { default: i64, min: i64, max: i64 },
@@ -195,6 +196,7 @@ impl fmt::Display for UciIn {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Eval {
     Cp(i64),
     Mate(i32),
@@ -211,6 +213,7 @@ impl fmt::Display for Eval {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Score {
     eval: Eval,
     lowerbound: bool,
@@ -230,6 +233,7 @@ impl fmt::Display for Score {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UciOut {
     IdName(String),
     IdAuthor(String),
@@ -404,7 +408,7 @@ impl<'a> Iterator for Parser<'a> {
     }
 }
 
-impl Parser<'_> {
+impl<'a> Parser<'a> {
     pub fn new(s: &str) -> Result<Parser<'_>, ProtocolError> {
         match memchr2(b'\r', b'\n', s.as_bytes()) {
             Some(_) => Err(ProtocolError::UnexpectedLineBreak),
@@ -417,15 +421,13 @@ impl Parser<'_> {
         head
     }
 
-    fn until(&mut self, token: &str) -> Option<&str> {
-        let (head, tail) = read_until(self.s, |t| t == token);
+    fn until<P>(&mut self, pred: P) -> Option<&str>
+    where
+        P: FnMut(&'a str) -> bool,
+    {
+        let (head, tail) = read_until(self.s, pred);
         self.s = tail;
         head
-    }
-
-    fn tail(&mut self) -> Option<&str> {
-        let (tail, _) = read_until(self.s, |_| false);
-        tail
     }
 
     fn end(&self) -> Result<(), ProtocolError> {
@@ -439,13 +441,13 @@ impl Parser<'_> {
         Ok(match self.next() {
             Some("name") => UciIn::Setoption {
                 name: UciOptionName(
-                    self.until("value")
+                    self.until(|t| t == "value")
                         .ok_or(ProtocolError::UnexpectedEndOfLine)?
                         .to_owned(),
                 ),
                 value: match self.next() {
                     Some("value") => Some(UciOptionValue(
-                        self.tail()
+                        self.until(|_| false)
                             .ok_or(ProtocolError::UnexpectedEndOfLine)?
                             .to_owned(),
                     )),
@@ -460,7 +462,7 @@ impl Parser<'_> {
 
     fn parse_position(&mut self) -> Result<UciIn, ProtocolError> {
         Ok(UciIn::Position {
-            fen: match self.until("moves") {
+            fen: match self.until(|t| t == "moves") {
                 Some("startpos") => None,
                 Some(fen) => Some(fen.parse()?),
                 None => return Err(ProtocolError::UnexpectedEndOfLine),
@@ -599,25 +601,72 @@ impl Parser<'_> {
     }
 
     fn parse_option(&mut self) -> Result<UciOut, ProtocolError> {
-        Ok(match self.next() {
-            Some("name") => {
-                let name = self
-                    .until("type")
-                    .ok_or(ProtocolError::UnexpectedEndOfLine)?;
-                self.next().ok_or(ProtocolError::UnexpectedEndOfLine)?; // type
-                match self.next() {
-                    Some("check") => todo!(),
-                    Some("spin") => todo!(),
-                    Some("combo") => todo!(),
-                    Some("button") => todo!(),
-                    Some("string") => todo!(),
-                    Some(_) => return Err(ProtocolError::UnexpectedToken),
-                    None => return Err(ProtocolError::UnexpectedEndOfLine),
-                }
-            }
+        let name = match self.next() {
+            Some("name") => UciOptionName(
+                self.until(|t| t == "type")
+                    .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                    .to_owned(),
+            ),
             Some(_) => return Err(ProtocolError::UnexpectedToken),
             None => return Err(ProtocolError::UnexpectedEndOfLine),
-        })
+        };
+        self.next(); // type
+        let option = match self.next() {
+            Some("check") => UciOption::Check {
+                default: match self.next() {
+                    Some("default") => match self.next() {
+                        Some("true") => true,
+                        Some("false") => false,
+                        Some(_) => return Err(ProtocolError::UnexpectedToken),
+                        None => return Err(ProtocolError::UnexpectedEndOfLine),
+                    },
+                    Some(_) => return Err(ProtocolError::UnexpectedToken),
+                    None => return Err(ProtocolError::UnexpectedEndOfLine),
+                },
+            },
+            Some("spin") => todo!(),
+            Some("combo") => {
+                let mut default = None;
+                let mut var = Vec::new();
+                let eot = |t| t == "default" || t == "var";
+                loop {
+                    match self.next() {
+                        Some("default") => {
+                            default = Some(
+                                self.until(eot)
+                                    .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                                    .to_owned(),
+                            )
+                        }
+                        Some("var") => var.push(
+                            self.until(eot)
+                                .ok_or(ProtocolError::UnexpectedEndOfLine)?
+                                .to_owned(),
+                        ),
+                        Some(_) => return Err(ProtocolError::UnexpectedToken),
+                        None => break,
+                    }
+                }
+                UciOption::Combo {
+                    default: default.ok_or(ProtocolError::UnexpectedEndOfLine)?,
+                    var,
+                }
+            }
+            Some("button") => {
+                self.end()?;
+                UciOption::Button
+            }
+            Some("string") => UciOption::String {
+                default: match self.next() {
+                    Some("default") => self.until(|_| false).unwrap_or_default().to_owned(),
+                    Some(_) => return Err(ProtocolError::UnexpectedToken),
+                    None => return Err(ProtocolError::UnexpectedEndOfLine),
+                },
+            },
+            Some(_) => return Err(ProtocolError::UnexpectedToken),
+            None => return Err(ProtocolError::UnexpectedEndOfLine),
+        };
+        Ok(UciOut::Option { name, option })
     }
 
     fn parse_bestmove(&mut self) -> Result<UciOut, ProtocolError> {
@@ -630,10 +679,10 @@ impl Parser<'_> {
                 Some("ponder") => match self.next() {
                     Some("(none)") | None => None,
                     Some(m) => Some(m.parse()?),
-                }
+                },
                 Some(_) => return Err(ProtocolError::UnexpectedToken),
                 None => None,
-            }
+            },
         })
     }
 
@@ -641,12 +690,12 @@ impl Parser<'_> {
         Ok(Some(match self.next() {
             Some("id") => match self.next() {
                 Some("name") => UciOut::IdName(
-                    self.tail()
+                    self.until(|_| false)
                         .ok_or(ProtocolError::UnexpectedEndOfLine)?
                         .to_owned(),
                 ),
                 Some("author") => UciOut::IdAuthor(
-                    self.tail()
+                    self.until(|_| false)
                         .ok_or(ProtocolError::UnexpectedEndOfLine)?
                         .to_owned(),
                 ),
@@ -681,7 +730,7 @@ fn read(s: &str) -> (Option<&str>, &str) {
 
 fn read_until<'a, P>(s: &'a str, mut pred: P) -> (Option<&'a str>, &'a str)
 where
-    P: FnMut(&str) -> bool,
+    P: FnMut(&'a str) -> bool,
 {
     let s = s.trim_start_matches(is_separator);
     if s.is_empty() {
