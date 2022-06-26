@@ -44,21 +44,47 @@ impl fmt::Display for UciOptionName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UciOptionValue(String);
-
-impl fmt::Display for UciOptionValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UciOption {
     Check { default: bool },
     Spin { default: i64, min: i64, max: i64 },
     Combo { default: String, var: Vec<String> },
     Button,
     String { default: String },
+}
+
+impl UciOption {
+    pub fn validate(&self, value: Option<String>) -> Result<UciOptionValue, ProtocolError> {
+        Ok(match self {
+            UciOption::Check { .. } => match value {
+                Some(v) if v == "true" => UciOptionValue::Check(true),
+                Some(v) if v == "false" => UciOptionValue::Check(false),
+                _ => return Err(ProtocolError::InvalidOptionValue),
+            },
+            UciOption::Spin { min, max, .. } => {
+                let value = value.ok_or(ProtocolError::InvalidOptionValue)?.parse()?;
+                if value < *min || *max < value {
+                    return Err(ProtocolError::InvalidOptionValue);
+                }
+                UciOptionValue::Spin(value)
+            }
+            UciOption::Combo { var, .. } => {
+                let value = value.ok_or(ProtocolError::InvalidOptionValue)?;
+                if !var.contains(&value) {
+                    return Err(ProtocolError::InvalidOptionValue);
+                }
+                UciOptionValue::Combo(value)
+            }
+            UciOption::Button => {
+                if value.is_some() {
+                    return Err(ProtocolError::InvalidOptionValue);
+                }
+                UciOptionValue::Button
+            }
+            UciOption::String { .. } => {
+                UciOptionValue::String(value.ok_or(ProtocolError::InvalidOptionValue)?)
+            }
+        })
+    }
 }
 
 impl UciOption {
@@ -98,12 +124,21 @@ impl fmt::Display for UciOption {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UciOptionValue {
+    Check(bool),
+    Spin(i64),
+    Combo(String),
+    Button,
+    String(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UciIn {
     Uci,
     Isready,
     Setoption {
         name: UciOptionName,
-        value: Option<UciOptionValue>,
+        value: Option<String>,
     },
     Ucinewgame,
     Position {
@@ -418,6 +453,8 @@ pub enum ProtocolError {
     InvalidMove(#[from] ParseUciError),
     #[error("invalid integer: {0}")]
     InvalidInteger(#[from] ParseIntError),
+    #[error("invalid option value")]
+    InvalidOptionValue,
 }
 
 struct Parser<'a> {
@@ -472,11 +509,11 @@ impl<'a> Parser<'a> {
                         .to_owned(),
                 ),
                 value: match self.next() {
-                    Some("value") => Some(UciOptionValue(
+                    Some("value") => Some(
                         self.until(|_| false)
                             .ok_or(ProtocolError::UnexpectedEndOfLine)?
                             .to_owned(),
-                    )),
+                    ),
                     Some(_) => unreachable!(),
                     None => None,
                 },
@@ -1029,7 +1066,7 @@ mod tests {
             UciIn::from_line("setoption name Skill Level value 10")?,
             Some(UciIn::Setoption {
                 name: UciOptionName("skill level".to_owned()),
-                value: Some(UciOptionValue("10".to_owned()))
+                value: Some("10".to_owned())
             })
         );
 
