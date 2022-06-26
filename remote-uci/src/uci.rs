@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt,
     hash::{Hash, Hasher},
     num::{NonZeroU32, ParseIntError},
@@ -239,12 +240,12 @@ pub enum UciOut {
         ponder: Option<Uci>,
     },
     Info {
+        multipv: Option<NonZeroU32>,
         depth: Option<u32>,
         seldepth: Option<u32>,
         time: Option<Duration>,
         nodes: Option<u64>,
         pv: Option<Vec<Uci>>,
-        multipv: Option<NonZeroU32>,
         score: Option<Score>,
         currmove: Option<Uci>,
         currmovenumber: Option<u32>,
@@ -253,9 +254,9 @@ pub enum UciOut {
         tbhits: Option<u64>,
         sbhits: Option<u64>,
         cpuload: Option<u32>,
-        string: String,
-        refutation: (Uci, Vec<Uci>), // at least 1
-        currline: (u64, Vec<Uci>),
+        refutation: HashMap<Uci, Vec<Uci>>,
+        currline: HashMap<u32, Vec<Uci>>,
+        string: Option<String>,
     },
     Option {
         name: UciOptionName,
@@ -285,7 +286,87 @@ impl fmt::Display for UciOut {
                     write!(f, " ponder {ponder}")?;
                 }
             }
-            UciOut::Info { .. } => todo!(),
+            UciOut::Info {
+                multipv,
+                depth,
+                seldepth,
+                time,
+                nodes,
+                pv,
+                score,
+                currmove,
+                currmovenumber,
+                hashfull,
+                nps,
+                tbhits,
+                sbhits,
+                cpuload,
+                refutation,
+                currline,
+                string,
+            } => {
+                f.write_str("info")?;
+                if let Some(multipv) = multipv {
+                    write!(f, " multipv {multipv}")?;
+                }
+                if let Some(depth) = depth {
+                    write!(f, " depth {depth}")?;
+                }
+                if let Some(seldepth) = seldepth {
+                    write!(f, " seldepth {seldepth}")?;
+                }
+                if let Some(time) = time {
+                    write!(f, " time {}", time.as_millis())?;
+                }
+                if let Some(nodes) = nodes {
+                    write!(f, " nodes {nodes}")?;
+                }
+                if let Some(pv) = pv {
+                    f.write_str(" pv")?;
+                    for m in pv {
+                        write!(f, " {m}")?;
+                    }
+                }
+                if let Some(score) = score {
+                    write!(f, " score {score}")?;
+                }
+                if let Some(currmove) = currmove {
+                    write!(f, " currmove {currmove}")?;
+                }
+                if let Some(currmovenumber) = currmovenumber {
+                    write!(f, " currmovenumber {currmovenumber}")?;
+                }
+                if let Some(hashfull) = hashfull {
+                    write!(f, " hashfull {hashfull}")?;
+                }
+                if let Some(nps) = nps {
+                    write!(f, " nps {nps}")?;
+                }
+                if let Some(tbhits) = tbhits {
+                    write!(f, " tbhits {tbhits}")?;
+                }
+                if let Some(sbhits) = sbhits {
+                    write!(f, " sbhits {sbhits}")?;
+                }
+                if let Some(cpuload) = cpuload {
+                    write!(f, " cpuload {cpuload}")?;
+                }
+                for (refuted, refuted_by) in refutation {
+                    write!(f, " refutation {refuted}")?;
+                    for m in refuted_by {
+                        write!(f, " {m}")?;
+                    }
+                }
+                for (cpunr, currline) in currline {
+                    write!(f, " currline {cpunr}")?;
+                    for m in currline {
+                        write!(f, " {m}")?;
+                    }
+                }
+                if let Some(string) = string {
+                    write!(f, " string {string}")?;
+                }
+            }
             UciOut::Option { name, option } => write!(f, "option name {name} {option}")?,
         })
     }
