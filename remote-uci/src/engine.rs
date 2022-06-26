@@ -94,13 +94,17 @@ impl Engine {
             UciIn::Setoption {
                 ref name,
                 ref value,
-            } => {
-                self.options
-                    .get(name)
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "unknown option"))?
-                    .validate(value.clone())
-                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-            }
+            } => match self.options.get(name) {
+                Some(option) => {
+                    option
+                        .validate(value.clone())
+                        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+                }
+                None => {
+                    log::warn!("Ignoring unknown option: {command}");
+                    return Ok(());
+                }
+            },
             _ => (),
         }
 
@@ -121,7 +125,7 @@ impl Engine {
 
             let command = match UciOut::from_line(line) {
                 Err(ProtocolError::UnknownEngineCommand) => {
-                    log::info!("{} >> {}", session.0, line);
+                    log::warn!("{} >> {}", session.0, line);
                     continue;
                 }
                 Err(err) => return Err(io::Error::new(io::ErrorKind::InvalidData, err)),
