@@ -42,12 +42,10 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/download-artifact@v3
       - run: sudo apt-get install -y reprepro
-      - run: reprepro --basedir debian includedeb bullseye external-engine/stockfish_15-1_amd64.deb
-      - run: reprepro --basedir debian includedeb bullseye external-engine/remote-uci_1-1_amd64.deb
+      - run: reprepro --basedir gh-pages/debian includedeb bullseye external-engine/stockfish_15-1_amd64.deb
+      - run: reprepro --basedir gh-pages/debian includedeb bullseye external-engine/remote-uci_1-1_amd64.deb
       - run: |
-          mkdir public &&
-          mv debian public &&
-          cd public &&
+          cd gh-pages &&
           git init --initial-branch gh-pages &&
           git config user.name "${GITHUB_ACTOR}" &&
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com" &&
