@@ -4,7 +4,7 @@ Architecture: amd64
 Section: games
 Priority: optional
 Maintainer: Niklas Fiekas <niklas@lichess.org>
-Pre-Depends: init-system-helpers
+Pre-Depends: init-system-helpers, openssl
 Depends: stockfish
 Description: External engine for Lichess
  Allows using UCI engines running outside of the browser for analysis on
