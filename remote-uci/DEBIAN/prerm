@@ -1,0 +1,5 @@
+#!/bin/sh -e
+
+if [ -z "${DPKG_ROOT:-}" ] && [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
+    deb-systemd-invoke stop remote-uci.socket remote-uci.service >/dev/null || true
+fi
