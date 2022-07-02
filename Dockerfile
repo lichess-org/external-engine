@@ -48,6 +48,7 @@ COPY --from=remote-uci /remote-uci_1-1_amd64.deb .
 RUN lintian -I /remote-uci_*_amd64.deb
 
 FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y openssl
 COPY --from=stockfish /stockfish_15-1_amd64.deb .
 RUN dpkg -i /stockfish_*_amd64.deb
 COPY --from=remote-uci /remote-uci_1-1_amd64.deb .
