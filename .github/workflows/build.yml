@@ -15,6 +15,7 @@ jobs:
             stockfish/sf_15.tar.gz
             stockfish/nn-6877cd24400e.nnue
           key: ${{ runner.os }}-stockfish-${{ hashFiles('stockfish/SHA256SUM') }}
+      - uses: docker/setup-buildx-action@v1
       - uses: docker/build-push-action@v3
         with:
           file: stockfish/Dockerfile
