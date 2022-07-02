@@ -5,4 +5,4 @@ GenericName=Chess analysis
 Exec=xdg-open http://localhost:9670/
 Icon=lichess
 Categories=Game;
-Keywords=chess;uci;
+Keywords=chess;remote;uci;
