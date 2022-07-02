@@ -7,7 +7,7 @@ async fn main() {
     env_logger::Builder::from_env(
         env_logger::Env::new()
             .filter("REMOTE_UCI_LOG")
-            .default_filter_or("debug")
+            .default_filter_or("info")
             .write_style("REMOTE_UCI_LOG_STYLE"),
     )
     .format_target(false)
