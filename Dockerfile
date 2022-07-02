@@ -33,7 +33,7 @@ COPY remote-uci .
 RUN cargo build --release --target x86_64-unknown-linux-musl
 WORKDIR /remote-uci_1-1_amd64
 RUN mkdir -p usr/bin && \
-    cp -R /remote-uci/DEBIAN . && \
+    cp -R /remote-uci/DEBIAN /remote-uci/usr . && \
     cp /remote-uci/target/x86_64-unknown-linux-musl/release/remote-uci usr/bin/ && \
     md5sum $(find * -type f -not -path 'DEBIAN/*') > DEBIAN/md5sums && \
     cat DEBIAN/md5sums && \
