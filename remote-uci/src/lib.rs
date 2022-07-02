@@ -3,6 +3,7 @@ pub mod uci;
 mod ws;
 
 use std::{
+    fs,
     net::{SocketAddr, TcpListener},
     ops::Not,
     path::PathBuf,
@@ -46,9 +47,9 @@ pub struct Opt {
     /// Limit size of hash table (MiB).
     #[clap(long)]
     max_hash: Option<u64>,
-    /// Provide secret token to use instead of a random one.
+    /// Provide file with secret token to use instead of a random one.
     #[clap(long)]
-    secret: Option<String>,
+    secret_file: Option<PathBuf>,
     /// Promise that the selected engine is a recent official Stockfish
     /// release.
     #[clap(long, hide = true)]
@@ -97,7 +98,9 @@ pub async fn make_server(
     let engine = Arc::new(SharedEngine::new(engine));
 
     let secret = Secret(
-        opt.secret
+        opt.secret_file
+            .map(|path| fs::read_to_string(path).expect("secret file"))
+            .filter(|s| !s.is_empty())
             .unwrap_or_else(|| format!("{:032x}", random::<u128>())),
     );
 
