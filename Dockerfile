@@ -13,9 +13,8 @@ ENV CXX /stockfish/vendor/x86_64-linux-musl-native/bin/x86_64-linux-musl-g++
 ENV STRIP /stockfish/vendor/x86_64-linux-musl-native/bin/strip
 RUN mkdir -p usr/lib/stockfish && \
     cd vendor/Stockfish-*/src && \
-    #for arch in "x86-64-vnni512" "x86-64-avx512" "x86-64-bmi2" "x86-64-avx2" "x86-64-sse41-popcnt" "x86-64-ssse3" "x86-64-sse3-popcnt" "x86-64"; do \
-    for arch in "x86-64-bmi2"; do \
-        LDFLAGS=-static CXXFLAGS=-DNNUE_EMBEDDING_OFF make -B -j2 build COMP=gcc CXX=${CXX} ARCH=${arch} EXE=stockfish-${arch} && \
+    for arch in "x86-64-vnni512" "x86-64-avx512" "x86-64-bmi2" "x86-64-avx2" "x86-64-sse41-popcnt" "x86-64-ssse3" "x86-64-sse3-popcnt" "x86-64"; do \
+        LDFLAGS=-static CXXFLAGS=-DNNUE_EMBEDDING_OFF make -B -j2 profile-build COMP=gcc CXX=${CXX} ARCH=${arch} EXE=stockfish-${arch} && \
         ${STRIP} stockfish-${arch} && \
         cp stockfish-${arch} ../../../usr/lib/stockfish/; \
     done
