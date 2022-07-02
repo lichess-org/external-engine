@@ -3,25 +3,25 @@ External engine (alpha)
 
 Using engines running outside of the browser on https://lichess.org/analysis.
 
-:warning: :wrench: :hammer: This is still under development, unstable,
-and insecure.
-
 Installing the official provider
 --------------------------------
 
-# Ubuntu, Debian
+### Ubuntu, Debian
+
+> :warning: :wrench: :hammer: This is still under development, unstable,
+and insecure.
 
 ```sh
 echo [arch=amd64 trusted=yes] https://lichess-org.github.io/external-engine/debian | sudo tee /etc/apt/sources.list.d/external-engine.list
-sudo apt-get update
+sudo apt update
 sudo apt install remote-uci stockfish
 ```
 
-# Windows
+### Windows
 
 Coming
 
-# Mac
+### macOS
 
 Maybe later
 
@@ -60,9 +60,8 @@ the engine state.
   commands will be able to damage the host system, cause data loss,
   exfiltrate data, or even achieve arbitrary code execution.
 
-  Recommendation: Use the `safe-uci` adapter as a wrapper
-  around UCI engines. If possible, bind the server only on the loopback
-  interface to limit the attack surface.
+  Recommendation: Parse and filter all UCI commands. If possible, bind the
+  server only on the loopback interface to limit the attack surface.
   Generate a strong `secret` for the engine registration and do not forget to
   check it.
 
