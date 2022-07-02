@@ -1,0 +1,10 @@
+Package: remote-uci
+Version: 1
+Architecture: amd64
+Section: games
+Priority: optional
+Maintainer: Niklas Fiekas <niklas@lichess.org>
+Depends: stockfish
+Description: External engine for Lichess
+ Allows using UCI engines running outside of the browser for analysis on
+ lichess.org.
