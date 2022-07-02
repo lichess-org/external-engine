@@ -6,7 +6,7 @@ Using engines running outside of the browser on https://lichess.org/analysis.
 Work in progress :wrench: :hammer:
 ----------------------------------
 
-* [x] Implement MVP
+* [x] Implement proof of concept
 * [x] Complete https://github.com/lichess-org/lila/pull/10867
 * [ ] Implement `safe-uci` adapter
 * [ ] Build easily installable local providers
