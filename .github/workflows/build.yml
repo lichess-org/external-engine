@@ -1,0 +1,26 @@
+name: Build
+
+on: [push, pull_request]
+
+jobs:
+  stockfish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            stockfish/sde-external-9.0.0-2021-11-07-lin.tar.xz
+            stockfish/x86_64-linux-musl-native.tgz
+            stockfish/sf_15.tar.gz
+            stockfish/nn-6877cd24400e.nnue
+          key: ${{ runner.os }}-stockfish-${{ hashFiles('stockfish/SHA256SUM') }}
+      - uses: docker/build-push-action@v3
+        with:
+          file: stockfish/Dockerfile
+          cache-from: type=gha
+          cache-to: type=gha
+#- uses: actions/upload-artifact@v3
+#  with:
+#    name: stockfish
+#    path: stockfish/stockfish_15-1_amd64.deb
