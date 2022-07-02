@@ -29,8 +29,6 @@ pub struct EngineInfo {
 
 impl Engine {
     pub async fn new(path: PathBuf) -> io::Result<(Engine, EngineInfo)> {
-        // TODO: Should wrap with safe-uci.
-
         let mut process = Command::new(path)
             .stdout(Stdio::piped())
             .stdin(Stdio::piped())
