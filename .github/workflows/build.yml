@@ -24,8 +24,9 @@ jobs:
           file: stockfish/Dockerfile
           cache-from: type=gha
           cache-to: type=gha
-          tags: stockfish:latest
-      - run: docker cp $(docker create stockfish):/stockfish_15-1_amd64.deb .
+          load: true
+          tags: niklasf/stockfish:latest
+      - run: docker cp "$(docker create niklasf/stockfish):/stockfish_15-1_amd64.deb" .
       - uses: actions/upload-artifact@v3
         with:
           name: stockfish
