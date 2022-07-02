@@ -15,9 +15,12 @@ jobs:
             stockfish/sf_15.tar.gz
             stockfish/nn-6877cd24400e.nnue
           key: ${{ runner.os }}-stockfish-${{ hashFiles('stockfish/SHA256SUM') }}
+      - run: wget --no-clobber --input-file downloads.txt
+        working-directory: stockfish
       - uses: docker/setup-buildx-action@v1
       - uses: docker/build-push-action@v3
         with:
+          context: .
           file: stockfish/Dockerfile
           cache-from: type=gha
           cache-to: type=gha
