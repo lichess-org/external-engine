@@ -1,0 +1,5 @@
+[Unit]
+Description=External engine for Lichess
+
+[Service]
+ExecStart=/home/niklas/Projekte/external-engine/remote-uci/target/debug/remote-uci stockfish

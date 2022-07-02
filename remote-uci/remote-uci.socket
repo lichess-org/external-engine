@@ -1,0 +1,8 @@
+[Unit]
+Description=External engine for Lichess
+
+[Socket]
+ListenStream=127.0.0.1:9670
+
+[Install]
+WantedBy=sockets.target
