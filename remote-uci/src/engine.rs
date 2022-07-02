@@ -6,7 +6,7 @@ use tokio::{
     process::{ChildStdin, ChildStdout, Command},
 };
 
-use crate::uci::{ProtocolError, UciIn, UciOption, UciOptionName, UciOut};
+use crate::uci::{UciIn, UciOption, UciOptionName, UciOut};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Session(pub u64);
@@ -147,12 +147,17 @@ impl Engine {
                 Ok(None) => {
                     log::warn!("{} >> {}", session.0, line);
                     continue;
-                },
+                }
                 Ok(Some(command)) => command,
             };
 
             match command {
-                UciOut::Info { pv: None, string: None, score: None, .. } => {
+                UciOut::Info {
+                    pv: None,
+                    string: None,
+                    score: None,
+                    ..
+                } => {
                     // Skip noise.
                     log::trace!("{} >> {}", session.0, command);
                     continue;

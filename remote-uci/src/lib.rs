@@ -2,7 +2,13 @@ mod engine;
 pub mod uci;
 mod ws;
 
-use std::{net::SocketAddr, ops::Not, path::PathBuf, sync::Arc, thread};
+use std::{
+    net::{SocketAddr, TcpListener},
+    ops::Not,
+    path::PathBuf,
+    sync::Arc,
+    thread,
+};
 
 use axum::{
     routing::{get, IntoMakeService},
@@ -10,6 +16,7 @@ use axum::{
 };
 use clap::Parser;
 use hyper::server::conn::AddrIncoming;
+use listenfd::ListenFd;
 use rand::random;
 use serde::Serialize;
 use serde_with::{serde_as, CommaSeparator, DisplayFromStr, StringWithSeparator};
@@ -27,8 +34,8 @@ pub struct Opt {
     /// UCI engine executable.
     engine: PathBuf,
     /// Bind server on this socket address.
-    #[clap(long, default_value = "127.0.0.1:9670")]
-    bind: SocketAddr,
+    #[clap(long)]
+    bind: Option<SocketAddr>,
     /// Overwrite engine name.
     #[clap(long)]
     name: Option<String>,
@@ -80,6 +87,7 @@ fn available_memory() -> u64 {
 
 pub async fn make_server(
     opt: Opt,
+    mut listen_fds: ListenFd,
 ) -> (
     ExternalWorkerOpts,
     hyper::Server<AddrIncoming, IntoMakeService<Router>>,
@@ -92,8 +100,15 @@ pub async fn make_server(
             .unwrap_or_else(|| format!("{:032x}", random::<u128>())),
     );
 
+    let listener = opt
+        .bind
+        .map(TcpListener::bind)
+        .or_else(|| listen_fds.take_tcp_listener(0).transpose())
+        .unwrap_or_else(|| TcpListener::bind("localhost:9670"))
+        .expect("bind");
+
     let spec = ExternalWorkerOpts {
-        url: format!("ws://{}/", opt.bind),
+        url: format!("ws://{}/", listener.local_addr().expect("local addr")),
         secret: secret.clone(),
         max_threads: [
             info.max_threads.unwrap_or(1),
@@ -132,6 +147,8 @@ pub async fn make_server(
 
     (
         spec,
-        axum::Server::bind(&opt.bind).serve(app.into_make_service()),
+        axum::Server::from_tcp(listener)
+            .expect("axum server")
+            .serve(app.into_make_service()),
     )
 }
