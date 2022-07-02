@@ -1,6 +1,5 @@
 use std::{collections::HashMap, io, path::PathBuf, process::Stdio};
 
-use shakmaty::variant::{Variant, VariantPosition};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter},
     process::{ChildStdin, ChildStdout, Command},
@@ -15,8 +14,6 @@ pub struct Engine {
     pending_uciok: u64,
     pending_readyok: u64,
     searching: bool,
-    variant: Variant,
-    pos: VariantPosition,
     options: HashMap<UciOptionName, UciOption>,
     stdin: BufWriter<ChildStdin>,
     stdout: BufReader<ChildStdout>,
@@ -44,8 +41,6 @@ impl Engine {
                 pending_uciok: 0,
                 pending_readyok: 0,
                 searching: false,
-                variant: Variant::Chess,
-                pos: VariantPosition::new(Variant::Chess),
                 options: HashMap::new(),
                 stdin: BufWriter::new(process.stdin.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdin closed")
