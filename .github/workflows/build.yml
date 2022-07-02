@@ -3,49 +3,33 @@ name: Build
 on: [push, pull_request]
 
 jobs:
-  stockfish:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/cache@v3
         with:
           path: |
-            stockfish/sde-external-9.0.0-2021-11-07-lin.tar.xz
-            stockfish/x86_64-linux-musl-native.tgz
-            stockfish/sf_15.tar.gz
-            stockfish/nn-6877cd24400e.nnue
-          key: ${{ runner.os }}-stockfish-${{ hashFiles('stockfish/SHA256SUM') }}
-      - run: wget --no-clobber --input-file downloads.txt
-        working-directory: stockfish
+            stockfish/vendor/sde-external-9.0.0-2021-11-07-lin.tar.xz
+            stockfish/vendor/x86_64-linux-musl-native.tgz
+            stockfish/vendor/sf_15.tar.gz
+            stockfish/vendor/nn-6877cd24400e.nnue
+          key: ${{ runner.os }}-stockfish-${{ hashFiles('stockfish/vendor/SHA256SUM') }}
+      - run: ./deps.sh
       - uses: docker/setup-buildx-action@v1
       - uses: docker/build-push-action@v3
         with:
-          context: stockfish
-          file: stockfish/Dockerfile
+          context: .
+          file: Dockerfile
           cache-from: type=gha
           cache-to: type=gha
           load: true
-          tags: niklasf/stockfish:latest
-      - run: docker cp "$(docker create niklasf/stockfish):/stockfish_15-1_amd64.deb" .
+          tags: niklasf/external-engine:latest
+      - run: docker cp "$(docker create niklasf/external-engine):/stockfish_15-1_amd64.deb" .
+      - run: docker cp "$(docker create niklasf/external-engine):/remote-uci_1-1_amd64.deb" .
       - uses: actions/upload-artifact@v3
         with:
-          name: stockfish
-          path: stockfish_15-1_amd64.deb
-  remote-uci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: x86_64-unknown-linux-musl
-          profile: minimal
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --manifest-path remote-uci/Cargo.toml
-      - uses: actions/upload-artifact@v3
-        with:
-          name: remote-uci
-          path: remote-uci/target/release/remote-uci
+          name: external-engine
+          path: |
+            stockfish_15-1_amd64.deb
+            remote-uci_1-1_amd64.deb
