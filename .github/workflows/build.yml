@@ -24,7 +24,10 @@ jobs:
           file: stockfish/Dockerfile
           cache-from: type=gha
           cache-to: type=gha
-#- uses: actions/upload-artifact@v3
-#  with:
-#    name: stockfish
-#    path: stockfish/stockfish_15-1_amd64.deb
+          load: true
+          tags: stockfish
+      - run: docker cp stockfish:/stockfish_15-1_amd64.deb .
+      - uses: actions/upload-artifact@v3
+        with:
+          name: stockfish
+          path: stockfish_15-1_amd64.deb
