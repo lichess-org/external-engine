@@ -51,6 +51,6 @@ COPY --from=stockfish /stockfish_15-1_amd64.deb .
 RUN dpkg -i /stockfish_*_amd64.deb
 COPY --from=remote-uci /remote-uci_1-1_amd64.deb .
 RUN dpkg -i /remote-uci_*_amd64.deb
-EXPOSE 6970/tcp
+EXPOSE 9670/tcp
 ENV REMOTE_UCI_LOG info
-CMD ["/usr/bin/remote-uci", "stockfish"]
+CMD /usr/bin/remote-uci --bind 0.0.0.0:9670 stockfish
