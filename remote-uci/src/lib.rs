@@ -94,9 +94,6 @@ pub async fn make_server(
     ExternalWorkerOpts,
     hyper::Server<AddrIncoming, IntoMakeService<Router>>,
 ) {
-    let (engine, info) = Engine::new(opt.engine).await.expect("spawn engine");
-    let engine = Arc::new(SharedEngine::new(engine));
-
     let secret = Secret(
         opt.secret_file
             .map(|path| fs::read_to_string(path).expect("secret file"))
@@ -110,6 +107,9 @@ pub async fn make_server(
         .or_else(|| listen_fds.take_tcp_listener(0).transpose())
         .unwrap_or_else(|| TcpListener::bind("localhost:9670"))
         .expect("bind");
+
+    let (engine, info) = Engine::new(opt.engine).await.expect("spawn engine");
+    let engine = Arc::new(SharedEngine::new(engine));
 
     let spec = ExternalWorkerOpts {
         url: format!("ws://{}/socket", listener.local_addr().expect("local addr")),
