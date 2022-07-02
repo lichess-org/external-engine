@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Link
 Version=1.5
-Name=Remote UCI
-GenericName=External Engine for Lichess
-Icon=remote-uci
+Name=External Engine for Lichess
 URL=http://localhost:9670/
-Categories=Game
+Icon=lichess
+Categories=Game;
+Keywords=chess;uci;
