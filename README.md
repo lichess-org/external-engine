@@ -12,7 +12,7 @@ Installing the official provider
 and insecure.
 
 ```sh
-echo [arch=amd64 trusted=yes] https://lichess-org.github.io/external-engine/debian | sudo tee /etc/apt/sources.list.d/external-engine.list
+echo deb [arch=amd64 trusted=yes] https://lichess-org.github.io/external-engine/debian bullseye main | sudo tee /etc/apt/sources.list.d/external-engine.list
 sudo apt update
 sudo apt install remote-uci stockfish
 ```
