@@ -1,28 +1,29 @@
-External engine (ALPHA)
+External engine (alpha)
 =======================
 
 Using engines running outside of the browser on https://lichess.org/analysis.
 
-Work in progress :wrench: :hammer:
-----------------------------------
+:warning: :wrench: :hammer: This is still under development, unstable,
+and insecure.
 
-* [x] Implement proof of concept
-* [x] Complete https://github.com/lichess-org/lila/pull/10867
-* [ ] Implement `safe-uci` adapter
-* [ ] Build easily installable local providers
+Installing the official provider
+--------------------------------
 
-Official providers
-------------------
+# Ubuntu, Debian
 
-### `remote-uci`
+```sh
+echo [arch=amd64 trusted=yes] https://lichess-org.github.io/external-engine/debian | sudo tee /etc/apt/sources.list.d/external-engine.list
+sudo apt-get update
+sudo apt install remote-uci stockfish
+```
 
-Reference implementation in Rust.
-Cross platform command line application wrapping an UCI engine.
-Secure, but not robust against denial of service.
+# Windows
 
-### Minimal GUIs with bundled Stockfish for Linux, Windows and Mac
+Coming
 
-Planned
+# Mac
+
+Maybe later
 
 Protocol (still subject to change)
 ----------------------------------
