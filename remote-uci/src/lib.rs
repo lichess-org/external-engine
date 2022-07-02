@@ -11,6 +11,7 @@ use std::{
 };
 
 use axum::{
+    response::Redirect,
     routing::{get, IntoMakeService},
     Router,
 };
@@ -55,7 +56,7 @@ pub struct Opt {
 }
 
 #[serde_as]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalWorkerOpts {
     url: String,
@@ -108,7 +109,7 @@ pub async fn make_server(
         .expect("bind");
 
     let spec = ExternalWorkerOpts {
-        url: format!("ws://{}/", listener.local_addr().expect("local addr")),
+        url: format!("ws://{}/socket", listener.local_addr().expect("local addr")),
         secret: secret.clone(),
         max_threads: [
             info.max_threads.unwrap_or(1),
@@ -136,14 +137,22 @@ pub async fn make_server(
         official_stockfish: opt.promise_official_stockfish,
     };
 
-    let app = Router::new().route(
-        "/",
-        get({
-            let engine = Arc::clone(&engine);
-            let secret = secret;
-            move |params, socket| ws::handler(engine, secret, params, socket)
-        }),
-    );
+    let app = Router::new()
+        .route(
+            "/",
+            get({
+                let spec = spec.clone();
+                move || redirect(spec)
+            }),
+        )
+        .route(
+            "/socket",
+            get({
+                let engine = Arc::clone(&engine);
+                let secret = secret;
+                move |params, socket| ws::handler(engine, secret, params, socket)
+            }),
+        );
 
     (
         spec,
@@ -151,4 +160,8 @@ pub async fn make_server(
             .expect("axum server")
             .serve(app.into_make_service()),
     )
+}
+
+async fn redirect(spec: ExternalWorkerOpts) -> Redirect {
+    Redirect::to(&spec.registration_url())
 }
