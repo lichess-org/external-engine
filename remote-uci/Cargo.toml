@@ -1,6 +1,6 @@
 [package]
 name = "remote-uci"
-version = "0.1.0"
+version = "1.0.0"
 description = "External UCI engine provider for lichess.org"
 repository = "https://github.com/lichess-org/external-engine"
 license = "GPL-3.0+"
@@ -25,3 +25,6 @@ shakmaty = { version = "0.21.1", features = ["variant"] }
 sysinfo = "0.23.10"
 thiserror = "1.0.31"
 tokio = { version = "1.18.0", features = ["full"] }
+
+[profile.release]
+strip = true
