@@ -1,5 +1,5 @@
 Package: remote-uci
-Version: 1
+Version: 1.0.0-alpha.1
 Architecture: amd64
 Section: games
 Priority: optional
