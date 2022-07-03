@@ -15,20 +15,19 @@ pub struct Engine {
     pending_readyok: u64,
     searching: bool,
     options: HashMap<UciOptionName, UciOption>,
+    name: Option<String>,
+    params: EngineParameters,
     stdin: BufWriter<ChildStdin>,
     stdout: BufReader<ChildStdout>,
 }
 
-#[derive(Default, Debug)]
-pub struct EngineInfo {
-    pub name: Option<String>,
-    pub max_threads: Option<usize>,
-    pub max_hash: Option<u64>,
-    pub variants: Vec<String>,
+pub struct EngineParameters {
+    pub max_threads: u32,
+    pub max_hash: u32,
 }
 
 impl Engine {
-    pub async fn new(path: PathBuf) -> io::Result<(Engine, EngineInfo)> {
+    pub async fn new(path: PathBuf, params: EngineParameters) -> io::Result<Engine> {
         let mut process = Command::new(path)
             .stdout(Stdio::piped())
             .stdin(Stdio::piped())
@@ -40,6 +39,8 @@ impl Engine {
                 pending_readyok: 0,
                 searching: false,
                 options: HashMap::new(),
+                name: None,
+                params,
                 stdin: BufWriter::new(process.stdin.take().ok_or_else(|| {
                     io::Error::new(io::ErrorKind::BrokenPipe, "engine stdin closed")
                 })?),
@@ -48,29 +49,10 @@ impl Engine {
                 })?),
             };
 
-        let info = engine.engine_info(Session(0)).await?;
-        Ok((engine, info))
-    }
-
-    async fn engine_info(&mut self, session: Session) -> io::Result<EngineInfo> {
-        let mut info = EngineInfo::default();
-        self.send(session, UciIn::Uci).await?;
-        while !self.is_idle() {
-            match self.recv(session).await? {
-                UciOut::IdName(name) => info.name = Some(name),
-                UciOut::Option { name, option } => {
-                    if name == "Hash" {
-                        info.max_hash = option.max().and_then(|v| v.try_into().ok());
-                    } else if name == "Threads" {
-                        info.max_threads = option.max().and_then(|v| v.try_into().ok());
-                    } else if name == "UCI_Variant" {
-                        info.variants = option.var().cloned().unwrap_or_default();
-                    }
-                }
-                _ => (),
-            }
-        }
-        Ok(info)
+        let session = Session(0);
+        engine.send(session, UciIn::Uci).await?;
+        engine.ensure_idle(session).await?;
+        Ok(engine)
     }
 
     pub async fn send(&mut self, session: Session, command: UciIn) -> io::Result<()> {
@@ -160,6 +142,7 @@ impl Engine {
             }
 
             match command {
+                UciOut::IdName(ref name) => self.name = Some(name.clone()),
                 UciOut::Uciok => self.pending_uciok = self.pending_uciok.saturating_sub(1),
                 UciOut::Readyok => self.pending_readyok = self.pending_readyok.saturating_sub(1),
                 UciOut::Bestmove { .. } => self.searching = false,
@@ -167,13 +150,47 @@ impl Engine {
                     ref name,
                     ref option,
                 } => {
-                    self.options.insert(name.clone(), option.clone());
+                    self.options.insert(
+                        name.clone(),
+                        if *name == "Threads" {
+                            option.clone().limit_max(self.params.max_threads.into())
+                        } else if *name == "Hash" {
+                            option.clone().limit_max(self.params.max_hash.into())
+                        } else {
+                            option.clone()
+                        },
+                    );
                 }
                 _ => (),
             }
 
             return Ok(command);
         }
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    pub fn max_threads(&self) -> i64 {
+        self.options
+            .get(&UciOptionName("Threads".to_owned()))
+            .and_then(UciOption::max)
+            .unwrap_or(1)
+    }
+
+    pub fn max_hash(&self) -> i64 {
+        self.options
+            .get(&UciOptionName("Hash".to_owned()))
+            .and_then(UciOption::max)
+            .unwrap_or(16)
+    }
+
+    pub fn variants(&self) -> &[String] {
+        self.options
+            .get(&UciOptionName("UCI_Variant".to_owned()))
+            .and_then(UciOption::var)
+            .unwrap_or_default()
     }
 
     pub fn is_searching(&self) -> bool {

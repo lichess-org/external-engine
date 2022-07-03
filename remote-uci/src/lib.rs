@@ -3,6 +3,7 @@ pub mod uci;
 mod ws;
 
 use std::{
+    cmp::min,
     fs,
     net::{SocketAddr, TcpListener},
     ops::Not,
@@ -17,6 +18,7 @@ use axum::{
     Router,
 };
 use clap::Parser;
+use engine::EngineParameters;
 use hyper::server::conn::AddrIncoming;
 use listenfd::ListenFd;
 use rand::random;
@@ -43,10 +45,10 @@ pub struct Opt {
     name: Option<String>,
     /// Limit number of threads.
     #[clap(long)]
-    max_threads: Option<usize>,
+    max_threads: Option<u32>,
     /// Limit size of hash table (MiB).
     #[clap(long)]
-    max_hash: Option<u64>,
+    max_hash: Option<u32>,
     /// Provide file with secret token to use instead of a random one.
     #[clap(long)]
     secret_file: Option<PathBuf>,
@@ -63,8 +65,8 @@ pub struct ExternalWorkerOpts {
     url: String,
     secret: Secret,
     name: String,
-    max_threads: usize,
-    max_hash: u64,
+    max_threads: i64,
+    max_hash: i64,
     #[serde_as(as = "StringWithSeparator::<CommaSeparator, String>")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     variants: Vec<String>,
@@ -108,37 +110,36 @@ pub async fn make_server(
         .unwrap_or_else(|| TcpListener::bind("localhost:9670"))
         .expect("bind");
 
-    let (engine, info) = Engine::new(opt.engine).await.expect("spawn engine");
-    let engine = Arc::new(SharedEngine::new(engine));
+    let engine = Engine::new(
+        opt.engine,
+        EngineParameters {
+            max_threads: min(
+                opt.max_threads.unwrap_or(u32::MAX),
+                u32::try_from(usize::from(
+                    thread::available_parallelism().expect("available threads"),
+                ))
+                .unwrap_or(u32::MAX),
+            ),
+            max_hash: min(
+                opt.max_hash.unwrap_or(u32::MAX),
+                u32::try_from(available_memory()).unwrap_or(u32::MAX),
+            ),
+        },
+    )
+    .await
+    .expect("spawn engine");
 
     let spec = ExternalWorkerOpts {
         url: format!("ws://{}/socket", listener.local_addr().expect("local addr")),
         secret: secret.clone(),
-        max_threads: [
-            info.max_threads.unwrap_or(1),
-            opt.max_threads.unwrap_or(usize::MAX),
-            thread::available_parallelism()
-                .expect("available threads")
-                .into(),
-        ]
-        .into_iter()
-        .min()
-        .unwrap(),
-        max_hash: [
-            info.max_hash.unwrap_or(16),
-            opt.max_hash.unwrap_or(u64::MAX),
-            available_memory(),
-        ]
-        .into_iter()
-        .min()
-        .unwrap(),
-        variants: info.variants,
-        name: opt
-            .name
-            .or(info.name)
-            .unwrap_or_else(|| "remote-uci".to_owned()),
+        max_threads: engine.max_threads(),
+        max_hash: engine.max_hash(),
+        variants: engine.variants().to_vec(),
+        name: engine.name().unwrap_or("remote-uci").to_owned(),
         official_stockfish: opt.promise_official_stockfish,
     };
+
+    let engine = Arc::new(SharedEngine::new(engine));
 
     let app = Router::new()
         .route(

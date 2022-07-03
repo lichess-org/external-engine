@@ -14,7 +14,7 @@ use shakmaty::{
 use thiserror::Error;
 
 #[derive(Clone, Debug, Eq)]
-pub struct UciOptionName(String);
+pub struct UciOptionName(pub String);
 
 impl UciOptionName {
     pub fn is_safe(&self) -> bool {
@@ -112,10 +112,24 @@ impl UciOption {
         }
     }
 
-    pub fn var(&self) -> Option<&Vec<String>> {
+    pub fn var(&self) -> Option<&[String]> {
         match self {
             UciOption::Combo { var, .. } => Some(var),
             _ => None,
+        }
+    }
+
+    pub fn limit_max(self, limit: i64) -> UciOption {
+        match self {
+            UciOption::Spin { min, max, default } => {
+                let new_max = limit.clamp(min, max);
+                UciOption::Spin {
+                    min,
+                    max: new_max,
+                    default: default.clamp(min, new_max),
+                }
+            }
+            _ => self,
         }
     }
 }
