@@ -1,6 +1,6 @@
 [package]
 name = "remote-uci"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.2"
 description = "External UCI engine provider for lichess.org"
 repository = "https://github.com/lichess-org/external-engine"
 license = "GPL-3.0+"
