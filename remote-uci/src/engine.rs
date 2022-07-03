@@ -71,15 +71,18 @@ impl Engine {
 
     pub async fn send_dangerous(&mut self, session: Session, command: UciIn) -> io::Result<()> {
         match command {
+            UciIn::Isready => self.pending_readyok += 1,
+            UciIn::Stop | UciIn::Ponderhit => (),
+            _ if self.searching => {
+                log::error!("{}: engine is busy: {}", session.0, command);
+                return Err(io::Error::new(io::ErrorKind::Other, "engine is busy"));
+            }
             UciIn::Uci => {
                 self.pending_uciok += 1;
                 self.options.clear();
+                self.name.take();
             }
-            UciIn::Isready => self.pending_readyok += 1,
             UciIn::Go { .. } => {
-                if self.searching {
-                    return Err(io::Error::new(io::ErrorKind::Other, "already searching"));
-                }
                 self.searching = true;
             }
             UciIn::Setoption {
