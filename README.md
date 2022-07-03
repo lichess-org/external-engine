@@ -108,7 +108,7 @@ with the following query parameters:
 
 | name | default | example | description |
 | --- | --- | --- | --- |
-| `url` | *required* | `ws://localhost:9670/` | URL of the provider server. External engine registrations are stored in local storage, so this may refer to `localhost` without breaking on other devices. |
+| `url` | *required* | `ws://localhost:9670/socket` | URL of the provider server. External engine registrations are stored in local storage, so this may refer to `localhost` without breaking on other devices. |
 | `secret` | *required* | | A secret token that the client should include in every connection request. |
 | `name` | *required* | `Stockfish 15` | Short engine or provider name to show on the client. |
 | `maxThreads` | `1` | `8` | Maximum number of threads supported for `setoption name Threads ...`. Make sure to respect limits of the engine as well as the machine. |
