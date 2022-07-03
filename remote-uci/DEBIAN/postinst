@@ -15,7 +15,7 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 
     if [ -d /run/systemd/system ]; then
         systemctl --system daemon-reload >/dev/null || true
-        deb-systemd-invoke stop remote-uci.service >/dev/null || true
-        deb-systemd-invoke restart remote-uci.socket >/dev/null || true
+        deb-systemd-invoke stop remote-uci.socket remote-uci.service >/dev/null || true
+        deb-systemd-invoke start remote-uci.socket >/dev/null || true
     fi
 fi
