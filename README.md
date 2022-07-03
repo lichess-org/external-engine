@@ -6,10 +6,11 @@ Using engines running outside of the browser on https://lichess.org/analysis.
 Installing the official provider
 --------------------------------
 
+> :warning: :wrench: :hammer: This is still under development
+and potentially unstable. Please report issues on this repository.
+
 ### Ubuntu, Debian
 
-> :warning: :wrench: :hammer: This is still under development, unstable,
-and insecure.
 
 ```sh
 echo deb [arch=amd64 trusted=yes] https://lichess-org.github.io/external-engine/debian bullseye main | sudo tee /etc/apt/sources.list.d/external-engine.list
@@ -18,6 +19,11 @@ sudo apt install remote-uci stockfish
 ```
 
 Then open the "External engine for Lichess" application.
+
+## Arch Linux
+
+Install https://aur.archlinux.org/packages/remote-uci. Then open the
+"External engine for Lichess" application.
 
 ### Windows
 
