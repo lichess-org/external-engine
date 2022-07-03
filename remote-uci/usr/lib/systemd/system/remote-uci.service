@@ -4,12 +4,14 @@ Requires=remote-uci.socket
 
 [Service]
 ExecStart=/usr/bin/remote-uci --secret-file /etc/remote-uci.secret stockfish
-
-PrivateTmp=yes
-PrivateDevices=yes
+User=remote-uci
+Group=remote-uci
+PrivateTmp=true
+PrivateDevices=true
+DevicePolicy=closed
 ProtectHome=true
 ProtectSystem=strict
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=
 NoNewPrivileges=true
 
 [Install]

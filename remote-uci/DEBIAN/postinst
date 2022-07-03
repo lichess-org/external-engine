@@ -1,7 +1,11 @@
 #!/bin/sh -eu
 
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+    addgroup --quiet --system remote-uci 2>/dev/null || true
+    adduser --quiet --system --ingroup remote-uci --no-create-home --disabled-password remote-uci 2>/dev/null || true
+
     touch /etc/remote-uci.secret
+    chown remote-uci:remote-uci /etc/remote-uci.secret
     chmod 600 /etc/remote-uci.secret
     tr -dc A-Za-z0-9 </dev/urandom | head -c 32 > /etc/remote-uci.secret
 
