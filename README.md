@@ -20,9 +20,9 @@ sudo apt install remote-uci stockfish
 
 Then open the "External engine for Lichess" application.
 
-## Arch Linux
+### Arch Linux
 
-Install https://aur.archlinux.org/packages/remote-uci. Then open the
+Install [`remote-uci` from the AUR](https://aur.archlinux.org/packages/remote-uci). Then open the
 "External engine for Lichess" application.
 
 ### Windows
