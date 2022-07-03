@@ -114,7 +114,7 @@ impl Engine {
             }
             let line = line.trim_end_matches(|c| c == '\r' || c == '\n');
 
-            let command = match UciOut::from_line(line) {
+            let mut command = match UciOut::from_line(line) {
                 Err(err) => {
                     log::error!("{} >> {}", session.0, line);
                     return Err(io::Error::new(io::ErrorKind::InvalidData, err));
@@ -148,18 +148,16 @@ impl Engine {
                 UciOut::Bestmove { .. } => self.searching = false,
                 UciOut::Option {
                     ref name,
-                    ref option,
+                    ref mut option,
                 } => {
-                    self.options.insert(
-                        name.clone(),
-                        if *name == "Threads" {
-                            option.clone().limit_max(self.params.max_threads.into())
-                        } else if *name == "Hash" {
-                            option.clone().limit_max(self.params.max_hash.into())
-                        } else {
-                            option.clone()
-                        },
-                    );
+                    // Apply limits set in engine parameters.
+                    if *name == "Threads" {
+                        option.limit_max(self.params.max_threads.into());
+                    } else if *name == "Hash" {
+                        option.limit_max(self.params.max_hash.into());
+                    }
+
+                    self.options.insert(name.clone(), option.clone());
                 }
                 _ => (),
             }

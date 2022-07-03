@@ -119,17 +119,10 @@ impl UciOption {
         }
     }
 
-    pub fn limit_max(self, limit: i64) -> UciOption {
-        match self {
-            UciOption::Spin { min, max, default } => {
-                let new_max = limit.clamp(min, max);
-                UciOption::Spin {
-                    min,
-                    max: new_max,
-                    default: default.clamp(min, new_max),
-                }
-            }
-            _ => self,
+    pub fn limit_max(&mut self, limit: i64) {
+        if let UciOption::Spin { min, max, default } = self {
+            *max = limit.clamp(*min, *max);
+            *default = (*default).clamp(*min, *max);
         }
     }
 }
