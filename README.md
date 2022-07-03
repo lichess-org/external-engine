@@ -17,6 +17,8 @@ sudo apt update
 sudo apt install remote-uci stockfish
 ```
 
+Then open the "External engine for Lichess" application.
+
 ### Windows
 
 Coming
