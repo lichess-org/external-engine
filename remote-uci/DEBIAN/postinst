@@ -1,8 +1,10 @@
 #!/bin/sh -eu
 
-openssl rand -base64 32 > /etc/remote-uci.secret
-
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+    touch /etc/remote-uci.secret
+    chmod 600 /etc/remote-uci.secret
+    tr -dc A-Za-z0-9 </dev/urandom | head -c 32 > /etc/remote-uci.secret
+
     deb-systemd-helper unmask remote-uci.socket >/dev/null || true
 
     if deb-systemd-helper --quiet was-enabled remote-uci.socket; then
@@ -10,9 +12,7 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
     else
         deb-systemd-helper update-state remote-uci.socket >/dev/null || true
     fi
-fi
 
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
     if [ -d /run/systemd/system ]; then
         systemctl --system daemon-reload >/dev/null || true
         deb-systemd-invoke stop remote-uci.service >/dev/null || true
