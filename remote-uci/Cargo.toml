@@ -21,7 +21,7 @@ rand = "0.8.5"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_urlencoded = "0.7.1"
 serde_with = "1.13.0"
-shakmaty = { version = "0.21.1", features = [] }
+shakmaty = "0.21.2"
 sysinfo = "0.24.5"
 thiserror = "1.0.31"
 tokio = { version = "1.18.0", features = ["full"] }
