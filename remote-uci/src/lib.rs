@@ -105,7 +105,20 @@ impl EngineOpts {
             .or(self.engine_x86_64_avx512)
             .filter(|_| is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512bw"))
             .or(self.engine_x86_64_bmi2)
-            .filter(|_| is_x86_feature_detected!("bmi2")) // TODO
+            .filter(|_| {
+                is_x86_feature_detected!("bmi2") && {
+                    // AMD was using slow software emulation for PEXT for a
+                    // long time. The Zen 3 family (0x19) is the first to
+                    // implement it in hardware.
+                    let cpuid = raw_cpuid::CpuId::new();
+                    cpuid
+                        .get_vendor_info()
+                        .map_or(true, |v| v.as_str() != "AuthenticAMD")
+                        || cpuid
+                            .get_feature_info()
+                            .map_or(false, |f| f.family_id() >= 0x19)
+                }
+            })
             .or(self.engine_x86_64_avx2)
             .filter(|_| is_x86_feature_detected!("avx2"))
             .or(self.engine_x86_64_sse41_popcnt)
