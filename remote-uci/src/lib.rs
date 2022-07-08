@@ -62,34 +62,34 @@ pub struct Opts {
 pub struct EngineOpts {
     /// UCI engine executable to use if the CPU supports the x86-64 feature
     /// VNNI512.
-    #[clap(long)]
+    #[clap(long, display_order = 0)]
     engine_x86_64_vnni512: Option<PathBuf>,
     /// Or else, the UCI engine executable to use if the CPU supports the
     /// x64-64 feature AVX512.
-    #[clap(long)]
+    #[clap(long, display_order = 1)]
     engine_x86_64_avx512: Option<PathBuf>,
     /// Or else, the UCI engine executable to use if the CPU supports the
     /// x86-64 feature BMI2 with fast PEXT/PDEP.
-    #[clap(long)]
+    #[clap(long, display_order = 2)]
     engine_x86_64_bmi2: Option<PathBuf>,
     /// Or else, the UCI engine executable to use if the CPU supports the
     /// x86-64 feature AVX2.
-    #[clap(long)]
+    #[clap(long, display_order = 3)]
     engine_x86_64_avx2: Option<PathBuf>,
     /// Or else, the UCI engine executable to use if the CPU supports the
     /// x86-64 features SSE41 and POPCNT.
-    #[clap(long)]
+    #[clap(long, display_order = 4)]
     engine_x86_64_sse41_popcnt: Option<PathBuf>,
     /// Or else, the UCI engine executable to use if the CPU supports the
     /// x86-64 feature SSSE3.
-    #[clap(long)]
+    #[clap(long, display_order = 5)]
     engine_x86_64_ssse3: Option<PathBuf>,
     /// Or else, the UCI engine executable to use if the CPU supports the
     /// x86-64 features SSE3 and POPCNT.
-    #[clap(long)]
+    #[clap(long, display_order = 6)]
     engine_x86_64_sse3_popcnt: Option<PathBuf>,
     /// Or else, the UCI engine executable to use.
-    #[clap(long)]
+    #[clap(long, display_order = 7)]
     engine: PathBuf,
 }
 
