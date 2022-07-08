@@ -34,9 +34,9 @@ use crate::{
 /// External UCI engine provider for lichess.org.
 #[derive(Debug, Parser)]
 #[clap(version)]
-pub struct Opt {
-    /// UCI engine executable.
-    engine: PathBuf,
+pub struct Opts {
+    #[clap(flatten)]
+    engine: EngineOpts,
     /// Bind server on this socket address.
     #[clap(long)]
     bind: Option<SocketAddr>,
@@ -56,6 +56,41 @@ pub struct Opt {
     /// release.
     #[clap(long, hide = true)]
     promise_official_stockfish: bool,
+}
+
+#[derive(Debug, Parser)]
+pub struct EngineOpts {
+    /// UCI engine executable to use if the CPU supports the x86-64 feature
+    /// VNNI512.
+    #[clap(long)]
+    engine_x86_64_vnni512: Option<PathBuf>,
+    /// Or else, the UCI engine executable to use if the CPU supports the
+    /// x64-64 feature AVX512.
+    #[clap(long)]
+    engine_x86_64_avx512: Option<PathBuf>,
+    /// Or else, the UCI engine executable to use if the CPU supports the
+    /// x86-64 feature BMI2 with fast PEXT/PDEP.
+    #[clap(long)]
+    engine_x86_64_bmi2: Option<PathBuf>,
+    /// Or else, the UCI engine executable to use if the CPU supports the
+    /// x86-64 feature AVX2.
+    #[clap(long)]
+    engine_x86_64_avx2: Option<PathBuf>,
+    /// Or else, the UCI engine executable to use if the CPU supports the
+    /// x86-64 features SSE41 and POPCNT.
+    #[clap(long)]
+    engine_x86_64_sse41_popcnt: Option<PathBuf>,
+    /// Or else, the UCI engine executable to use if the CPU supports the
+    /// x86-64 feature SSSE3.
+    #[clap(long)]
+    engine_x86_64_ssse3: Option<PathBuf>,
+    /// Or else, the UCI engine executable to use if the CPU supports the
+    /// x86-64 features SSE3 and POPCNT.
+    #[clap(long)]
+    engine_x86_64_sse3_popcnt: Option<PathBuf>,
+    /// Or else, the UCI engine executable to use.
+    #[clap(long)]
+    engine: PathBuf,
 }
 
 #[serde_as]
@@ -90,20 +125,20 @@ fn available_memory() -> u64 {
 }
 
 pub async fn make_server(
-    opt: Opt,
+    opts: Opts,
     mut listen_fds: ListenFd,
 ) -> (
     ExternalWorkerOpts,
     hyper::Server<AddrIncoming, IntoMakeService<Router>>,
 ) {
     let secret = Secret(
-        opt.secret_file
+        opts.secret_file
             .map(|path| fs::read_to_string(path).expect("secret file"))
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| format!("{:032x}", random::<u128>())),
     );
 
-    let listener = opt
+    let listener = opts
         .bind
         .map(TcpListener::bind)
         .or_else(|| listen_fds.take_tcp_listener(0).transpose())
@@ -111,17 +146,17 @@ pub async fn make_server(
         .expect("bind");
 
     let engine = Engine::new(
-        opt.engine,
+        opts.engine.engine,
         EngineParameters {
             max_threads: min(
-                opt.max_threads.unwrap_or(u32::MAX),
+                opts.max_threads.unwrap_or(u32::MAX),
                 u32::try_from(usize::from(
                     thread::available_parallelism().expect("available threads"),
                 ))
                 .unwrap_or(u32::MAX),
             ),
             max_hash: min(
-                opt.max_hash.unwrap_or(u32::MAX),
+                opts.max_hash.unwrap_or(u32::MAX),
                 u32::try_from(available_memory()).unwrap_or(u32::MAX),
             ),
         },
@@ -136,7 +171,7 @@ pub async fn make_server(
         max_hash: engine.max_hash(),
         variants: engine.variants().to_vec(),
         name: engine.name().unwrap_or("remote-uci").to_owned(),
-        official_stockfish: opt.promise_official_stockfish,
+        official_stockfish: opts.promise_official_stockfish,
     };
 
     let engine = Arc::new(SharedEngine::new(engine));

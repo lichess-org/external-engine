@@ -1,6 +1,6 @@
 use clap::Parser;
 use listenfd::ListenFd;
-use remote_uci::{make_server, Opt};
+use remote_uci::{make_server, Opts};
 
 #[tokio::main]
 async fn main() {
@@ -14,7 +14,7 @@ async fn main() {
     .format_module_path(false)
     .init();
 
-    let (spec, server) = make_server(Opt::parse(), ListenFd::from_env()).await;
+    let (spec, server) = make_server(Opts::parse(), ListenFd::from_env()).await;
     println!("{}", spec.registration_url());
     server.await.expect("bind");
 }
