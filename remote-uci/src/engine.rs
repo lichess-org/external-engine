@@ -28,6 +28,8 @@ pub struct EngineParameters {
 
 impl Engine {
     pub async fn new(path: PathBuf, params: EngineParameters) -> io::Result<Engine> {
+        log::info!("Starting engine {path:?} ...");
+
         let mut process = Command::new(path)
             .stdout(Stdio::piped())
             .stdin(Stdio::piped())

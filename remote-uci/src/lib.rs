@@ -93,6 +93,36 @@ pub struct EngineOpts {
     engine: PathBuf,
 }
 
+impl EngineOpts {
+    #[cfg(target_arch = "x86_64")]
+    fn best(self) -> PathBuf {
+        self.engine_x86_64_vnni512
+            .filter(|_| {
+                is_x86_feature_detected!("avx512dq")
+                    && is_x86_feature_detected!("avx512vl")
+                    && is_x86_feature_detected!("avx512vnni")
+            })
+            .or(self.engine_x86_64_avx512)
+            .filter(|_| is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512bw"))
+            .or(self.engine_x86_64_bmi2)
+            .filter(|_| is_x86_feature_detected!("bmi2")) // TODO
+            .or(self.engine_x86_64_avx2)
+            .filter(|_| is_x86_feature_detected!("avx2"))
+            .or(self.engine_x86_64_sse41_popcnt)
+            .filter(|_| is_x86_feature_detected!("sse4.1"))
+            .or(self.engine_x86_64_ssse3)
+            .filter(|_| is_x86_feature_detected!("ssse3"))
+            .or(self.engine_x86_64_sse3_popcnt)
+            .filter(|_| is_x86_feature_detected!("sse3") && is_x86_feature_detected!("popcnt"))
+            .unwrap_or(self.engine)
+    }
+
+    #[cfg(not(target_arch = "x86_64"))]
+    fn best(self) -> PathBuf {
+        self.engine
+    }
+}
+
 #[serde_as]
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -146,7 +176,7 @@ pub async fn make_server(
         .expect("bind");
 
     let engine = Engine::new(
-        opts.engine.engine,
+        opts.engine.best(),
         EngineParameters {
             max_threads: min(
                 opts.max_threads.unwrap_or(u32::MAX),
