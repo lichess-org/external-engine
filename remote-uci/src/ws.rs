@@ -81,6 +81,7 @@ async fn handle_socket(shared_engine: Arc<SharedEngine>, mut socket: WebSocket) 
     let _ = socket.send(Message::Close(None)).await;
 }
 
+#[allow(clippy::large_enum_variant)]
 enum Event {
     Socket(Option<Result<Message, axum::Error>>),
     Engine(io::Result<UciOut>),
