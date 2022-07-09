@@ -174,12 +174,16 @@ pub async fn make_server(
     ExternalWorkerOpts,
     hyper::Server<AddrIncoming, IntoMakeService<Router>>,
 ) {
+	log::debug!("generating secret ...");
+
     let secret = Secret(
         opts.secret_file
             .map(|path| fs::read_to_string(path).expect("secret file"))
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| format!("{:032x}", random::<u128>())),
     );
+	
+	log::debug!("binding ...");
 
     let listener = opts
         .bind
@@ -187,6 +191,8 @@ pub async fn make_server(
         .or_else(|| listen_fds.take_tcp_listener(0).transpose())
         .unwrap_or_else(|| TcpListener::bind("localhost:9670"))
         .expect("bind");
+	
+	log::debug!("spawning engine ...");
 
     let engine = Engine::new(
         opts.engine.best(),

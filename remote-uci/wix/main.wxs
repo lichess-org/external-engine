@@ -63,7 +63,7 @@
         Id='*'
         Name='External Engine'
         UpgradeCode='F4AE3357-6CE1-4C1B-A106-5EDEBF76CF9F'
-        Manufacturer='Niklas Fiekas'
+        Manufacturer='Lichess'
         Language='1033'
         Codepage='1252'
         Version='$(var.Version)'>
@@ -71,7 +71,7 @@
         <Package Id='*'
             Keywords='Installer'
             Description='External UCI engine provider for lichess.org'
-            Manufacturer='Niklas Fiekas'
+            Manufacturer='Lichess'
             InstallerVersion='450'
             Languages='1033'
             Compressed='yes'
@@ -81,10 +81,13 @@
 
         <MajorUpgrade
             Schedule='afterInstallInitialize'
-            DowngradeErrorMessage='A newer version of remote-uci is already installed. Setup will now exit.'/>
+            DowngradeErrorMessage='A newer version of remote-uci is already installed. Setup will now exit.'
+			AllowSameVersionUpgrades='yes'/>
 
         <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
         <Property Id='DiskPrompt' Value='External Engine Installation'/>
+		
+		<Property Id="URL" Value="http://localhost:9670" />
 
         <Directory Id='TARGETDIR' Name='SourceDir'>
             <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
@@ -109,9 +112,15 @@
                         <File Id='LicenseFile' Name='ChangeMe' DiskId='1' Source='C:\Path\To\File' KeyPath='yes'/>
                     </Component>
                     -->
-
-                    <Directory Id='Bin' Name='bin'>
-                        <Component Id='binary0' Guid='*'>
+						<Component Id='stockfish' Guid='*'>
+							<File
+								Id='stockfish_x86_64_avx2'
+								Name='stockfish.exe'
+								DiskId='1'
+								Source='wix\stockfish.exe'
+								KeyPath='yes'/>
+						</Component>
+                        <Component Id='remote_uci' Guid='*'>
                             <File
                                 Id='exe0'
                                 Name='remote-uci-service.exe'
@@ -125,24 +134,38 @@
 								Start='auto'
 								Type='ownProcess'
 								Vital='yes'
+								Arguments='"--engine" "[#stockfish_x86_64_avx2]"'
 								Description='External UCI engine provider for lichess.org'/>
-							<ServiceControl
+							<!-- <ServiceControl
 								Id='startService'
 								Start='install'
 								Stop='both'
 								Name='External Engine'
 								Remove='uninstall'
-								Wait='yes'/>
+								Wait='yes'/> -->
                         </Component>
-                    </Directory>
                 </Directory>
             </Directory>
+			<Directory Id="ProgramMenuFolder">
+				<Directory Id="ApplicationProgramsFolder" Name="External engine for lichess.org"/>
+			</Directory>
         </Directory>
-
+		
+		<DirectoryRef Id="ApplicationProgramsFolder">
+			<Component Id="ApplicationShortcut" Guid="*">
+				<Shortcut Id="ApplicationStartMenuShortcut" 
+						  Name="External engine for lichess.org"
+						  Description="Register external UCI engine for analysis on lichess.org"
+						  Target="[URL]"/>
+				<RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall"/>
+				<RegistryValue Root="HKCU" Key="Software\Lichess\ExternalEngine" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+			</Component>
+		</DirectoryRef>
+		
         <Feature
             Id='Binaries'
             Title='Application'
-            Description='Installs all binaries and the license.'
+            Description='Installs external engine service and Stockfish'
             Level='1'
             ConfigurableDirectory='APPLICATIONFOLDER'
             AllowAdvertise='no'
@@ -155,7 +178,9 @@
             -->
             <!--<ComponentRef Id='License'/>-->
 
-            <ComponentRef Id='binary0'/>
+			<ComponentRef Id='stockfish'/>
+            <ComponentRef Id='remote_uci'/>
+			<ComponentRef Id='ApplicationShortcut'/>
         </Feature>
 
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
@@ -167,8 +192,8 @@
           The product icon is the graphic that appears in the Add/Remove
           Programs control panel for the application.
         -->
-        <!--<Icon Id='ProductICO' SourceFile='wix\Product.ico'/>-->
-        <!--<Property Id='ARPPRODUCTICON' Value='ProductICO' />-->
+        <Icon Id='ProductICO' SourceFile='wix\Product.ico'/>
+        <Property Id='ARPPRODUCTICON' Value='ProductICO' />
 
         <Property Id='ARPHELPLINK' Value='https://github.com/lichess-org/external-engine'/>
         
