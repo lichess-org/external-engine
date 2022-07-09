@@ -214,8 +214,12 @@
             -->
             <Publish Dialog='WelcomeDlg' Control='Next' Event='NewDialog' Value='CustomizeDlg' Order='99'>1</Publish>
             <Publish Dialog='CustomizeDlg' Control='Back' Event='NewDialog' Value='WelcomeDlg' Order='99'>1</Publish>
-
         </UI>
+		
+		<CustomAction Id="LaunchBrowser" Directory="APPLICATIONFOLDER" Return="asyncNoWait" ExeCommand="explorer.exe [URL]" />
+		<InstallExecuteSequence>
+			<Custom Action="LaunchBrowser" After="InstallFinalize">NOT REMOVE="ALL"</Custom>
+		</InstallExecuteSequence>
 
         
         <!--
