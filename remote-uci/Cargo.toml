@@ -4,6 +4,7 @@ version = "1.0.0-alpha.2"
 description = "External UCI engine provider for lichess.org"
 repository = "https://github.com/lichess-org/external-engine"
 license = "GPL-3.0+"
+authors = ["Niklas Fiekas <niklas@lichess.org>"]
 categories = ["command-line-utilities", "games"]
 keywords = ["chess", "lichess"]
 edition = "2021"
