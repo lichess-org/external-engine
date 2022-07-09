@@ -200,7 +200,8 @@
         <Property Id='ARPHELPLINK' Value='https://github.com/lichess-org/external-engine'/>
         
         <UI>
-            <UIRef Id='WixUI_FeatureTree'/>
+            <!--<UIRef Id='WixUI_FeatureTree'/>-->
+			<UIRef Id="WixUI_Minimal" />
             
             <!--
               Enabling the EULA dialog in the installer is a three step process:
@@ -212,15 +213,15 @@
                    the path to a RTF file that will be used as the EULA and
                    displayed in the license agreement dialog.
             -->
-            <Publish Dialog='WelcomeDlg' Control='Next' Event='NewDialog' Value='CustomizeDlg' Order='99'>1</Publish>
-            <Publish Dialog='CustomizeDlg' Control='Back' Event='NewDialog' Value='WelcomeDlg' Order='99'>1</Publish>
+            <!--<Publish Dialog='WelcomeDlg' Control='Next' Event='NewDialog' Value='CustomizeDlg' Order='99'>1</Publish>
+            <Publish Dialog='CustomizeDlg' Control='Back' Event='NewDialog' Value='WelcomeDlg' Order='99'>1</Publish>-->
+			<Publish Dialog="ExitDialog" 
+				Control="Finish" 
+				Event="DoAction" 
+				Value="LaunchBrowser">NOT REMOVE="ALL"</Publish>
         </UI>
 		
 		<CustomAction Id="LaunchBrowser" Directory="APPLICATIONFOLDER" Return="asyncNoWait" ExeCommand="explorer.exe [URL]" />
-		<InstallExecuteSequence>
-			<Custom Action="LaunchBrowser" After="InstallFinalize">NOT REMOVE="ALL"</Custom>
-		</InstallExecuteSequence>
-
         
         <!--
           Enabling the EULA dialog in the installer requires uncommenting
