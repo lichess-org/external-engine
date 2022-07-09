@@ -57,11 +57,11 @@
     <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
 <?endif ?>
 
-<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi' xmlns:util='http://schemas.microsoft.com/wix/UtilExtension'>
 
     <Product
         Id='*'
-        Name='External Engine for lichess.org'
+        Name='External Engine'
         UpgradeCode='F4AE3357-6CE1-4C1B-A106-5EDEBF76CF9F'
         Manufacturer='Niklas Fiekas'
         Language='1033'
@@ -114,10 +114,25 @@
                         <Component Id='binary0' Guid='*'>
                             <File
                                 Id='exe0'
-                                Name='remote-uci.exe'
+                                Name='remote-uci-service.exe'
                                 DiskId='1'
-                                Source='$(var.CargoTargetBinDir)\remote-uci.exe'
+                                Source='$(var.CargoTargetBinDir)\remote-uci-service.exe'
                                 KeyPath='yes'/>
+							<ServiceInstall
+								ErrorControl='normal'
+								Id='remote_uci'
+								Name='External Engine'
+								Start='auto'
+								Type='ownProcess'
+								Vital='yes'
+								Description='External UCI engine provider for lichess.org'/>
+							<ServiceControl
+								Id='startService'
+								Start='install'
+								Stop='both'
+								Name='External Engine'
+								Remove='uninstall'
+								Wait='yes'/>
                         </Component>
                     </Directory>
                 </Directory>

@@ -27,8 +27,18 @@ sysinfo = "0.24.5"
 thiserror = "1.0.31"
 tokio = { version = "1.18.0", features = ["full"] }
 
+
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 raw-cpuid = "10.3.0"
+
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.4.0"
+
+[[bin]]
+name = "remote-uci"
+
+[[target.'cfg(windows)'.bin]]
+name = "remote-uci-service"
 
 [profile.release]
 strip = true
