@@ -34,11 +34,5 @@ raw-cpuid = "10.3.0"
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.4.0"
 
-[[bin]]
-name = "remote-uci"
-
-[[target.'cfg(windows)'.bin]]
-name = "remote-uci-service"
-
 [profile.release]
 strip = true
