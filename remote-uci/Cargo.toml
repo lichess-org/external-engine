@@ -33,6 +33,3 @@ raw-cpuid = "10.3.0"
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.4.0"
 simple-logging = "2.0.2"
-
-[profile.release]
-strip = true

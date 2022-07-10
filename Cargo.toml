@@ -1,0 +1,5 @@
+[workspace]
+members = ["remote-uci", "remote-uci-service"]
+
+[profile.release]
+strip = true

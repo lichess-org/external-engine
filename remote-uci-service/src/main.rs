@@ -17,8 +17,7 @@ use windows_service::{
 define_windows_service!(ffi_service_main, service_main);
 
 fn main() -> Result<(), windows_service::Error> {
-    service_dispatcher::start("remote_uci", ffi_service_main)?;
-    Ok(())
+    service_dispatcher::start("remote_uci", ffi_service_main)
 }
 
 fn service_status(state: ServiceState, wait_hint: Duration) -> ServiceStatus {
