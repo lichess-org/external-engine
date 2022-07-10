@@ -856,6 +856,9 @@ dependencies = [
 name = "remote-uci-service"
 version = "1.0.0"
 dependencies = [
+ "clap",
+ "listenfd",
+ "log",
  "remote-uci",
  "simple-logging",
  "tokio",

@@ -134,15 +134,15 @@
 								Start='auto'
 								Type='ownProcess'
 								Vital='yes'
-								Arguments='"--engine" "[#stockfish_x86_64_avx2]"'
+								Arguments='--secret-file remote-uci.secret --engine "[#stockfish_x86_64_avx2]"'
 								Description='External UCI engine provider for lichess.org'/>
-							<!-- <ServiceControl
+							<ServiceControl
 								Id='startService'
 								Start='install'
 								Stop='both'
 								Name='External Engine'
 								Remove='uninstall'
-								Wait='yes'/> -->
+								Wait='yes'/>
                         </Component>
                 </Directory>
             </Directory>
