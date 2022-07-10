@@ -62,23 +62,30 @@ jobs:
         if: steps.sde.outcome == 'success'
       - run: |
           cd stockfish/vendor/Stockfish/src
-          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64 EXE=stockfish-x86-64.exe
-          mingw32-make strip EXE=stockfish-x86-64.exe
-          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-sse3-popcnt EXE=stockfish-x86-64-sse3-popcnt.exe
-          mingw32-make strip EXE=stockfish-x86-64-sse3-popcnt.exe
-          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-ssse3 EXE=stockfish-x86-64-ssse3.exe
-          mingw32-make strip EXE=stockfish-x86-64-ssse3.exe
-          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-sse41-popcnt EXE=stockfish-x86-64-sse41-popcnt.exe
-          mingw32-make strip EXE=stockfish-x86-64-sse41-popcnt.exe
-          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-avx2 EXE=stockfish-x86-64-avx2.exe
-          mingw32-make strip EXE=stockfish-x86-64-avx2.exe
-          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-bmi2 EXE=stockfish-x86-64-bmi2.exe
-          mingw32-make strip EXE=stockfish-x86-64-bmi2.exe
-          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-avx512 EXE=stockfish-x86-64-avx512.exe
-          mingw32-make strip EXE=stockfish-x86-64-avx512.exe
-          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-vnni512 EXE=stockfish-x86-64-vnni512.exe
-          mingw32-make strip EXE=stockfish-x86-64-vnni512.exe
-          cp stockfish-* ../../../../remote-uci-service/wix/
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64
+          mingw32-make strip
+          cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64.exe
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-sse3-popcnt
+          mingw32-make strip
+          cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64-sse3-popcnt.exe
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-ssse3
+          mingw32-make strip
+          cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64-ssse3.exe
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-sse41-popcnt
+          mingw32-make strip
+          cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64-sse41-popcnt.exe
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-avx2
+          mingw32-make strip
+          cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64-avx2.exe
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-bmi2
+          mingw32-make strip
+          cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64-bmi2.exe
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-avx512
+          mingw32-make strip
+          cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64-avx512.exe
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-vnni512
+          mingw32-make strip
+          cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64-vnni512.exe
           cp nn-*.nnue ../../../../remote-uci-service/wix/
       - run: cargo install cargo-wix
       - run: |
