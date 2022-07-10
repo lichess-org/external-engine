@@ -26,17 +26,35 @@
     <Directory Id='TARGETDIR' Name='SourceDir'>
       <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
         <Directory Id='APPLICATIONFOLDER' Name='External Engine'>
+          <Component Id='nnue' Guid='*'>
+            <File Id='nnue' Name='nn-6877cd24400e.nnue' DiskId='1' Source='wix\nn-6877cd24400e.nnue' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64' Guid='*'>
+            <File Id='stockfish_x86_64' Name='stockfish-x86-64.exe' DiskId='1' Source='wix\stockfish-x86-64.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_sse3_popcnt' Guid='*'>
+            <File Id='stockfish_x86_64_sse3_popcnt' Name='stockfish-x86-64-sse3-popcnt.exe' DiskId='1' Source='wix\stockfish-x86-64-sse3-popcnt.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_ssse3' Guid='*'>
+            <File Id='stockfish_x86_64_ssse3' Name='stockfish-x86-64-ssse3.exe' DiskId='1' Source='wix\stockfish-x86-64-ssse3.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_sse41_popcnt' Guid='*'>
+            <File Id='stockfish_x86_64_sse41_popcnt' Name='stockfish-x86-64-sse41-popcnt.exe' DiskId='1' Source='wix\stockfish-x86-64-sse41-popcnt.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_avx2' Guid='*'>
+            <File Id='stockfish_x86_64_avx2' Name='stockfish-x86-64-avx2.exe' DiskId='1' Source='wix\stockfish-x86-64-avx2.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_bmi2' Guid='*'>
+            <File Id='stockfish_x86_64_bmi2' Name='stockfish-x86-64-bmi2.exe' DiskId='1' Source='wix\stockfish-x86-64-bmi2.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_avx512' Guid='*'>
+            <File Id='stockfish_x86_64_avx512' Name='stockfish-x86-64-avx512.exe' DiskId='1' Source='wix\stockfish-x86-64-avx512.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_vnni512' Guid='*'>
+            <File Id='stockfish_x86_64_vnni512' Name='stockfish-x86-64-vnni512.exe' DiskId='1' Source='wix\stockfish-x86-64-vnni512.exe' KeyPath='yes' />
+          </Component>
           <Component Id='remote_uci' Guid='*'>
-            <File Id='remote_uci' Name='remote-uci-service.exe' DiskId='1' Source='$(var.CargoTargetBinDir)\remote-uci-service.exe' KeyPath='yes' />
-			<File Id='nnue' Name='nn-6877cd24400e.nnue' DiskId='1' Source='wix\nn-6877cd24400e.nnue' />
-			<File Id='stockfish_x86_64' Name='stockfish-x86-64.exe' DiskId='1' Source='wix\stockfish-x86-64.exe' />
-			<File Id='stockfish_x86_64_ssse3' Name='stockfish-x86-64-ssse3.exe' DiskId='1' Source='wix\stockfish-x86-64-ssse3.exe' />
-			<File Id='stockfish_x86_64_sse3_popcnt' Name='stockfish-x86-64-sse3-popcnt.exe' DiskId='1' Source='wix\stockfish-x86-64-sse3-popcnt.exe' />
-			<File Id='stockfish_x86_64_sse41_popcnt' Name='stockfish-x86-64-sse41-popcnt.exe' DiskId='1' Source='wix\stockfish-x86-64-sse41-popcnt.exe' />
-			<File Id='stockfish_x86_64_avx2' Name='stockfish-x86-64-avx2.exe' DiskId='1' Source='wix\stockfish-x86-64-avx2.exe' />
-			<File Id='stockfish_x86_64_bmi2' Name='stockfish-x86-64-bmi2.exe' DiskId='1' Source='wix\stockfish-x86-64-bmi2.exe' />
-			<File Id='stockfish_x86_64_avx512' Name='stockfish-x86-64-avx512.exe' DiskId='1' Source='wix\stockfish-x86-64-avx512.exe' />
-			<File Id='stockfish_x86_64_vnni512' Name='stockfish-x86-64-vnni512.exe' DiskId='1' Source='wix\stockfish-x86-64-vnni512.exe' />
+            <File Id='exe0' Name='remote-uci-service.exe' DiskId='1' Source='$(var.CargoTargetBinDir)\remote-uci-service.exe' KeyPath='yes' />
             <ServiceInstall ErrorControl='normal' Id='remote_uci' Name='External Engine' Start='auto' Type='ownProcess' Vital='yes' Arguments='--secret-file remote-uci.secret --engine "[#stockfish_x86_64]" --engine-x86-64-sse3-popcnt "[#stockfish_x86_64_sse3_popcnt]" --engine-x86-64-ssse3 "[#stockfish_x86_64_ssse3]" --engine-x86-64-sse41-popcnt "[#stockfish_x86_64_sse41_popcnt]" --engine-x86-64-avx2 "[#stockfish_x86_64_avx2]" --engine-x86-64-bmi2 "[#stockfish_x86_64_bmi2]" --engine-x86-64-avx512 "[#stockfish_x86_64_avx512]" --engine-x86-64-vnni512 "[#stockfish_x86_64_vnni512]"' Description='External UCI engine provider for lichess.org' />
             <ServiceControl Id='startService' Start='install' Stop='both' Name='External Engine' Remove='uninstall' Wait='yes' />
           </Component>
@@ -58,6 +76,15 @@
     </DirectoryRef>
 
     <Feature Id='Binaries' Title='Application' Description='Installs external engine service and Stockfish' Level='1' ConfigurableDirectory='APPLICATIONFOLDER' AllowAdvertise='no' Display='expand' Absent='disallow'>
+      <ComponentRef Id='nnue' />
+      <ComponentRef Id='stockfish_x86_64' />
+      <ComponentRef Id='stockfish_x86_64_sse3_popcnt' />
+      <ComponentRef Id='stockfish_x86_64_ssse3' />
+      <ComponentRef Id='stockfish_x86_64_sse41_popcnt' />
+      <ComponentRef Id='stockfish_x86_64_avx2' />
+      <ComponentRef Id='stockfish_x86_64_bmi2' />
+      <ComponentRef Id='stockfish_x86_64_avx512' />
+      <ComponentRef Id='stockfish_x86_64_vnni512' />
       <ComponentRef Id='remote_uci' />
       <ComponentRef Id='ApplicationShortcut' />
     </Feature>
