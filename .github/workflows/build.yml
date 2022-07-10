@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
       - uses: actions/cache@v3
         with:
           path: |
@@ -44,6 +46,8 @@ jobs:
           msystem: mingw64
           install: mingw-w64-x86_64-gcc mingw-w64-x86_64-rust mingw-w64-x86_64-make tar
       - uses: actions/checkout@v3
+        with:
+          submodules: true
       - uses: actions/checkout@v3
         with:
           repository: lichess-org/intel-sde
