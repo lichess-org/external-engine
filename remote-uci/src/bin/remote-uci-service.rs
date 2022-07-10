@@ -33,7 +33,7 @@ fn service_status(state: ServiceState, wait_hint: Duration) -> ServiceStatus {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn service_main(args: Vec<OsString>) {
     simple_logging::log_to_file("C:\\remote-uci.log", log::LevelFilter::Trace);
     std::panic::set_hook(Box::new(|panic| {

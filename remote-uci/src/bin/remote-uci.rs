@@ -4,7 +4,7 @@ use clap::Parser;
 use listenfd::ListenFd;
 use remote_uci::{make_server, Opts};
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(
         env_logger::Env::new()

@@ -26,7 +26,7 @@ shakmaty = "0.21.2"
 simple-logging = "2.0.2"
 sysinfo = "0.24.5"
 thiserror = "1.0.31"
-tokio = { version = "1.18.0", features = ["full"] }
+tokio = { version = "1.18.0", features = ["rt", "macros", "sync", "process"] }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 raw-cpuid = "10.3.0"
