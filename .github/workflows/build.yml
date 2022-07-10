@@ -103,6 +103,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/download-artifact@v3
+        with:
+          name: external-engine-debian
       - run: sudo apt-get install -y reprepro
       - run: reprepro --basedir gh-pages/debian includedeb bullseye external-engine/stockfish_15-1_amd64.deb
       - run: reprepro --basedir gh-pages/debian includedeb bullseye external-engine/remote-uci_1-1_amd64.deb
@@ -122,7 +124,9 @@ jobs:
       - windows
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@
+        with:
+          name: external-engine-windows
       - uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -132,7 +136,7 @@ jobs:
           draft: true
           prerelease: false
         id: create_release
-      - uses: actions/update-release-asset@v1
+      - uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
