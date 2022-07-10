@@ -1,9 +1,11 @@
+use std::error::Error;
+
 use clap::Parser;
 use listenfd::ListenFd;
 use remote_uci::{make_server, Opts};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(
         env_logger::Env::new()
             .filter("REMOTE_UCI_LOG")
@@ -14,7 +16,8 @@ async fn main() {
     .format_module_path(false)
     .init();
 
-    let (spec, server) = make_server(Opts::parse(), ListenFd::from_env()).await;
+    let (spec, server) = make_server(Opts::parse(), ListenFd::from_env()).await?;
     println!("{}", spec.registration_url());
-    server.await.expect("bind");
+    server.await?;
+    Ok(())
 }

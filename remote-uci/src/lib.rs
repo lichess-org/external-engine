@@ -4,6 +4,7 @@ mod ws;
 
 use std::{
     cmp::min,
+    error::Error,
     fs, io,
     net::{SocketAddr, TcpListener},
     ops::Not,
@@ -169,46 +170,48 @@ fn available_memory() -> u64 {
 pub async fn make_server(
     opts: Opts,
     mut listen_fds: ListenFd,
-) -> (
-    ExternalWorkerOpts,
-    hyper::Server<AddrIncoming, IntoMakeService<Router>>,
-) {
+) -> Result<
+    (
+        ExternalWorkerOpts,
+        hyper::Server<AddrIncoming, IntoMakeService<Router>>,
+    ),
+    Box<dyn Error>,
+> {
     let secret = match opts.secret_file {
         Some(path) => match fs::read_to_string(&path) {
             Ok(secret) if secret.len() >= 8 => {
-                log::debug!("loaded secret file {path:?}");
+                log::debug!("Loaded secret file {path:?}");
                 Secret(secret)
             }
             Ok(_) => {
-                log::error!("ignoring secret file {path:?} (too short)");
+                log::error!("Ignoring secret file {path:?} (too short)");
                 Secret::random()
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 let secret = Secret::random();
                 match fs::write(&path, &secret.0) {
-                    Ok(()) => log::warn!("created new secret file {path:?}"),
-                    Err(err) => log::error!("failed to create secret file {path:?}: {err}"),
+                    Ok(()) => log::warn!("Created new secret file {path:?}"),
+                    Err(err) => log::error!("Failed to create secret file {path:?}: {err}"),
                 }
                 secret
             }
             Err(err) => {
-                log::error!("failed to load secret file {path:?}: {err}");
+                log::error!("Failed to load secret file {path:?}: {err}");
                 Secret::random()
             }
         },
         None => Secret::random(),
     };
 
-    log::debug!("binding ...");
-
     let listener = opts
         .bind
         .map(TcpListener::bind)
         .or_else(|| listen_fds.take_tcp_listener(0).transpose())
         .unwrap_or_else(|| TcpListener::bind("localhost:9670"))
-        .expect("bind");
-
-    log::debug!("spawning engine ...");
+        .map_err(|err| {
+            log::error!("Could not bind server: {err}");
+            err
+        })?;
 
     let engine = Engine::new(
         opts.engine.best(),
@@ -227,7 +230,10 @@ pub async fn make_server(
         },
     )
     .await
-    .expect("spawn engine");
+    .map_err(|err| {
+        log::error!("Could not start engine: {err}");
+        err
+    })?;
 
     let spec = ExternalWorkerOpts {
         url: format!("ws://{}/socket", listener.local_addr().expect("local addr")),
@@ -258,12 +264,10 @@ pub async fn make_server(
             }),
         );
 
-    (
+    Ok((
         spec,
-        axum::Server::from_tcp(listener)
-            .expect("axum server")
-            .serve(app.into_make_service()),
-    )
+        axum::Server::from_tcp(listener)?.serve(app.into_make_service()),
+    ))
 }
 
 async fn redirect(spec: ExternalWorkerOpts) -> Redirect {
