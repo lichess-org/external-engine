@@ -135,12 +135,12 @@ jobs:
           draft: true
           prerelease: false
         id: create_release
-      - run: ls -R
+      - run: mv remote-uci-service-*.msi remote-uci-service.msi
       - uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: external-engine-windows/remote-uci-*.msi
-          asset_name: remote-uci.msi
+          asset_path: remote-uci-service.msi
+          asset_name: remote-uci-service-${{ github.ref }}.msi
           asset_content_type: application/octet-stream
