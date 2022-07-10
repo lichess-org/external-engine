@@ -891,7 +891,6 @@ dependencies = [
  "sysinfo",
  "thiserror",
  "tokio",
- "win-service-logger",
  "windows-service",
 ]
 
@@ -1375,23 +1374,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c168940144dd21fd8046987c16a46a33d5fc84eec29ef9dcddc2ac9e31526b7c"
 
 [[package]]
-name = "widestring"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17882f045410753661207383517a6f62ec3dbeb6a4ed2acce01f0728238d1983"
-
-[[package]]
-name = "win-service-logger"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24d3726353a51c75224fd50938bf84c5a049f6f18a2f4b67238d6f1c720b71b5"
-dependencies = [
- "log",
- "widestring 0.5.1",
- "winapi",
-]
-
-[[package]]
 name = "winapi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1430,7 +1412,7 @@ checksum = "0c643e10139d127d30d6d753398c8a6f0a43532e8370f6c9d29ebbff29b984ab"
 dependencies = [
  "bitflags",
  "err-derive",
- "widestring 0.4.3",
+ "widestring",
  "winapi",
 ]
 

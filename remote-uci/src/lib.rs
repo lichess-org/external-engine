@@ -10,6 +10,7 @@ use std::{
     path::PathBuf,
     sync::Arc,
     thread,
+    io,
 };
 
 use axum::{
@@ -178,7 +179,15 @@ pub async fn make_server(
 
     let secret = Secret(
         opts.secret_file
-            .map(|path| fs::read_to_string(path).expect("secret file"))
+            .map(|path| match fs::read_to_string(&path) {
+                Ok(secret) => secret,
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                    let secret = format!("{:032x}", random::<u128>());
+                    fs::write(&path, &secret).expect("create secret file");
+                    secret
+                }
+                Err(err) => panic!("secret file: {err}"),
+            })
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| format!("{:032x}", random::<u128>())),
     );
