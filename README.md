@@ -1,19 +1,16 @@
 External engine (alpha)
 =======================
 
-Using engines running outside of the browser on https://lichess.org/analysis.
+Using engines running outside of the browser for
+[analysis on lichess.org](https://lichess.org/analysis).
 
 Installing the official provider
 --------------------------------
 
-Provides Stockfish 15 for x86-64, built with profile-guided optimization,
-automatically selecting the best available binary for your CPU.
-
-:wrench: :hammer: This is still under development
-and potentially unstable. Please report issues on this repository.
+Provides Stockfish 15 for 64-bit x86 platforms, built with profile-guided
+optimization, automatically selecting the best available binary for your CPU.
 
 ### Ubuntu, Debian
-
 
 ```sh
 echo 'deb [arch=amd64 trusted=yes] https://lichess-org.github.io/external-engine/debian bullseye main' | sudo tee /etc/apt/sources.list.d/external-engine.list
@@ -46,8 +43,8 @@ Please make an issue or [get in contact](https://discord.gg/lichess) to discuss.
 Third party providers
 ---------------------
 
-:wrench: :hammer: The protocol is subject to change.
-Please make an issue or [get in contact](https://discord.gg/lichess) to discuss.
+> :wrench: :hammer: The protocol is subject to change.
+> Please make an issue or [get in contact](https://discord.gg/lichess) to discuss.
 
 ### Overview
 
