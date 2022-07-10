@@ -61,6 +61,20 @@ jobs:
           tar xf intel-sde/sde-external-9.0.0-2021-11-07-win.tar.xz && echo SDE_PATH=$(cygpath -u $GITHUB_WORKSPACE)/sde-external-9.0.0-2021-11-07-win/sde.exe | tee $GITHUB_ENV
           echo PGO=profile- | tee $GITHUB_ENV
         if: steps.sde.outcome == 'success'
+      - run: |
+          cd stockfish/vendor/Stockfish/src
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64 EXE=stockfish-x86-64
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-bmi2 EXE=stockfish-x86-64-bmi2
+          cp stockfish-* ../../../../remote-uci-service/wix/
+      - run: cargo install cargo-wix
+      - run: |
+          cd remote-uci-service
+          cargo build --release --target x86_64-pc-windows-gnu
+          cargo wix --nocapture -l wix/main.wxl
+      - uses: actions/upload-artifact@v3
+        with:
+          name: external-engine
+          path: target/wix/*.msi
   release:
     runs-on: ubuntu-latest
     needs:

@@ -112,14 +112,22 @@
                         <File Id='LicenseFile' Name='ChangeMe' DiskId='1' Source='C:\Path\To\File' KeyPath='yes'/>
                     </Component>
                     -->
-						<Component Id='stockfish' Guid='*'>
-							<File
-								Id='stockfish_x86_64_avx2'
-								Name='stockfish.exe'
-								DiskId='1'
-								Source='wix\stockfish.exe'
-								KeyPath='yes'/>
-						</Component>
+    <Component Id='stockfish_x86_64' Guid='*'>
+      <File
+        Id='stockfish_x86_64'
+        Name='stockfish-x86-64.exe'
+        DiskId='1'
+        Source='wix\stockfish-x86-64.exe'
+        KeyPath='yes'/>
+    </Component>
+    <Component Id='stockfish_x86_64_bmi2' Guid='*'>
+      <File
+        Id='stockfish_x86_64_bmi2'
+        Name='stockfish-x86-64-bmi2.exe'
+        DiskId='1'
+        Source='wix\stockfish-x86-64-bmi2.exe'
+        KeyPath='yes'/>
+    </Component>
                         <Component Id='remote_uci' Guid='*'>
                             <File
                                 Id='exe0'
@@ -134,7 +142,7 @@
 								Start='auto'
 								Type='ownProcess'
 								Vital='yes'
-								Arguments='--secret-file remote-uci.secret --engine "[#stockfish_x86_64_avx2]"'
+								Arguments='--secret-file remote-uci.secret --engine "[#stockfish_x86_64]" --engine-x86-64-bmi2 "[#stockfish_x86_64_bmi2]"'
 								Description='External UCI engine provider for lichess.org'/>
 							<ServiceControl
 								Id='startService'
