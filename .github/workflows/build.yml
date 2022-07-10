@@ -106,8 +106,8 @@ jobs:
         with:
           name: external-engine-debian
       - run: sudo apt-get install -y reprepro
-      - run: reprepro --basedir gh-pages/debian includedeb bullseye external-engine/stockfish_15-1_amd64.deb
-      - run: reprepro --basedir gh-pages/debian includedeb bullseye external-engine/remote-uci_1-1_amd64.deb
+      - run: reprepro --basedir gh-pages/debian includedeb bullseye external-engine-debian/stockfish_*_amd64.deb
+      - run: reprepro --basedir gh-pages/debian includedeb bullseye external-engine-debian/remote-uci_*_amd64.deb
       - run: |
           cd gh-pages &&
           git init --initial-branch gh-pages &&
