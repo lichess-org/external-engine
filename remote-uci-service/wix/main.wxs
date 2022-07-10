@@ -14,6 +14,10 @@
 
     <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1' />
 
+    <Icon Id='ProductICO' SourceFile='favicon.ico' />
+    <WixVariable Id='WixUILicenseRtf' Value='wix\Copying.rtf' />
+    <WixVariable Id='WixUIBannerBmp' Value='wix\Banner.bmp' />
+    <WixVariable Id='WixUIDialogBmp' Value='wix\Dialog.bmp' />
     <Property Id='DiskPrompt' Value='External Engine Installation' />
     <Property Id="URL" Value="http://localhost:9670" />
     <Property Id='ARPPRODUCTICON' Value='ProductICO' />
@@ -64,17 +68,12 @@
     <DirectoryRef Id="ApplicationProgramsFolder">
       <Component Id="ApplicationShortcut" Guid="*">
         <Shortcut Id="ApplicationStartMenuShortcut" Name="External engine for lichess.org" Description="Register external UCI engine for analysis on lichess.org" Target="[URL]">
-          <Icon Id='ShortcutICO' SourceFile='wix\Product.ico' />
+          <Icon Id='ShortcutICO' SourceFile='favicon.ico' />
         </Shortcut>
         <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\Lichess\ExternalEngine" Name="installed" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </DirectoryRef>
-
-    <Icon Id='ProductICO' SourceFile='wix\Product.ico' />
-    <WixVariable Id='WixUILicenseRtf' Value='wix\Copying.rtf' />
-    <WixVariable Id='WixUIBannerBmp' Value='wix\Banner.bmp' />
-    <WixVariable Id='WixUIDialogBmp' Value='wix\Dialog.bmp' />
 
     <Feature Id='Binaries' Title='Application' Description='Installs external engine service and Stockfish' Level='1' ConfigurableDirectory='APPLICATIONFOLDER' AllowAdvertise='no' Display='expand' Absent='disallow'>
       <ComponentRef Id='nnue' />
