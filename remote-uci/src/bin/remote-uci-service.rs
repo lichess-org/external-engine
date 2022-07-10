@@ -1,4 +1,4 @@
-use std::{ffi::OsString, sync::Arc, time::Duration};
+use std::{error::Error, ffi::OsString, sync::Arc, time::Duration};
 
 use clap::Parser;
 use listenfd::ListenFd;
@@ -34,52 +34,34 @@ fn service_status(state: ServiceState, wait_hint: Duration) -> ServiceStatus {
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn service_main(args: Vec<OsString>) {
-    simple_logging::log_to_file("C:\\remote-uci.log", log::LevelFilter::Trace);
-    std::panic::set_hook(Box::new(|panic| {
-        log::error!("Panic: {:?}", panic);
-    }));
+async fn service_main(_args: Vec<OsString>) {
+    let _ = simple_logging::log_to_file("remote-uci.log", log::LevelFilter::Warn);
 
-    log::debug!("Args: {:?}", args);
-    log::debug!("Std env args: {:?}", std::env::args());
+    if let Err(err) = service_run().await {
+        log::error!("Fatal error: {err}");
+    }
+}
 
-    log::debug!("Registering service ...");
-
+async fn service_run() -> Result<(), Box<dyn Error>> {
     let stop_rx = Arc::new(Notify::new());
     let stop_tx = Arc::clone(&stop_rx);
 
-    let status_handle = service_control_handler::register("remote_uci", move |event| match event {
-        ServiceControl::Stop => {
-            stop_tx.notify_one();
-            ServiceControlHandlerResult::NoError
-        }
-        ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
-        _ => ServiceControlHandlerResult::NotImplemented,
-    })
-    .expect("register service");
+    let status_handle =
+        service_control_handler::register("remote_uci", move |event| match event {
+            ServiceControl::Stop => {
+                stop_tx.notify_one();
+                ServiceControlHandlerResult::NoError
+            }
+            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+            _ => ServiceControlHandlerResult::NotImplemented,
+        })?;
 
-    log::debug!("Start pending ...");
+    status_handle.set_service_status(service_status(
+        ServiceState::StartPending,
+        Duration::from_secs(60),
+    ))?;
 
-    status_handle
-        .set_service_status(service_status(
-            ServiceState::StartPending,
-            Duration::from_secs(60),
-        ))
-        .expect("set start pending");
-
-    log::debug!("Making server ...");
-
-    let opts = match Opts::try_parse() {
-        Ok(opts) => opts,
-        Err(err) => {
-            log::error!("error: {err}");
-            panic!("invalid opts");
-        }
-    };
-
-    let (_spec, server) = make_server(opts, ListenFd::empty()).await;
-
-    log::debug!("Running server ...");
+    let (_spec, server) = make_server(Opts::try_parse()?, ListenFd::empty()).await?;
 
     server
         .with_graceful_shutdown(async {
@@ -97,12 +79,9 @@ async fn service_main(args: Vec<OsString>) {
                 ))
                 .expect("set stop pending");
         })
-        .await
-        .expect("bind");
+        .await?;
 
-    log::debug!("About to stop ...");
+    status_handle.set_service_status(service_status(ServiceState::Stopped, Duration::default()))?;
 
-    status_handle
-        .set_service_status(service_status(ServiceState::Stopped, Duration::default()))
-        .expect("set stopped");
+    Ok(())
 }
