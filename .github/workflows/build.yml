@@ -56,7 +56,7 @@ jobs:
           path: intel-sde
         id: sde
         continue-on-error: true
-        if: startsWith(github.ref, 'refs/tags/v')
+        #if: startsWith(github.ref, 'refs/tags/v')
       - run: |
           tar xf intel-sde/sde-external-9.0.0-2021-11-07-win.tar.xz && echo SDE_PATH=$(cygpath -u $GITHUB_WORKSPACE)/sde-external-9.0.0-2021-11-07-win/sde.exe | tee $GITHUB_ENV
           echo PGO=profile- | tee $GITHUB_ENV
@@ -75,7 +75,8 @@ jobs:
           cp nn-*.nnue ../../../../remote-uci-service/wix/
       - run: cargo install cargo-wix
       - run: |
-          cargo wix --nocapture --package remote-uci-service -l remote-uci-service/wix/main.wxl
+          cd remote-uci-service
+          cargo wix --nocapture --package remote-uci-service -l wix/main.wxl
       - uses: actions/upload-artifact@v3
         with:
           name: external-engine
