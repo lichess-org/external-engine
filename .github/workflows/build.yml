@@ -56,7 +56,6 @@ jobs:
           path: intel-sde
         id: sde
         continue-on-error: true
-        #if: startsWith(github.ref, 'refs/tags/v')
       - run: |
           tar xf intel-sde/sde-external-9.0.0-2021-11-07-win.tar.xz && echo SDE_PATH=$(cygpath -u $GITHUB_WORKSPACE)/sde-external-9.0.0-2021-11-07-win/sde.exe | tee $GITHUB_ENV
           echo PGO=profile- | tee $GITHUB_ENV
@@ -64,13 +63,13 @@ jobs:
       - run: |
           cd stockfish/vendor/Stockfish/src
           CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64 EXE=stockfish-x86-64
-          #CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-sse3-popcnt EXE=stockfish-x86-64-sse3-popcnt
-          #CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-ssse3 EXE=stockfish-x86-64-ssse3
-          #CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-sse41-popcnt EXE=stockfish-x86-64-sse41-popcnt
-          #CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-avx2 EXE=stockfish-x86-64-avx2
-          #CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-bmi2 EXE=stockfish-x86-64-bmi2
-          #CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-avx512 EXE=stockfish-x86-64-avx512
-          #CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-vnni512 EXE=stockfish-x86-64-vnni512
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-sse3-popcnt EXE=stockfish-x86-64-sse3-popcnt
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-ssse3 EXE=stockfish-x86-64-ssse3
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-sse41-popcnt EXE=stockfish-x86-64-sse41-popcnt
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-avx2 EXE=stockfish-x86-64-avx2
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-bmi2 EXE=stockfish-x86-64-bmi2
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-avx512 EXE=stockfish-x86-64-avx512
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-vnni512 EXE=stockfish-x86-64-vnni512
           cp stockfish-* ../../../../remote-uci-service/wix/
           cp nn-*.nnue ../../../../remote-uci-service/wix/
       - run: cargo install cargo-wix
@@ -80,8 +79,8 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: external-engine
-          path: target/wix/*.msi
-  release:
+          path: target/wix/remote-uci-*.msi
+  debian-release:
     runs-on: ubuntu-latest
     needs:
       - debian
@@ -102,3 +101,27 @@ jobs:
           git push --force "https://${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
+  windows-release:
+    runs-on: ubuntu-latest
+    needs:
+      - windows
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v3
+      - uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: External engine ${{ github.ref }}
+          draft: true
+          prerelease: false
+        id: create_release
+      - uses: actions/update-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: remote-uci-*.msi
+          asset_name: remote-uci.msi
+          asset_content_type: application/octet-stream
