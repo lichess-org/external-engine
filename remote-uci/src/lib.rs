@@ -4,13 +4,12 @@ mod ws;
 
 use std::{
     cmp::min,
-    fs,
+    fs, io,
     net::{SocketAddr, TcpListener},
     ops::Not,
     path::PathBuf,
     sync::Arc,
     thread,
-    io,
 };
 
 use axum::{
@@ -22,7 +21,6 @@ use clap::Parser;
 use engine::EngineParameters;
 use hyper::server::conn::AddrIncoming;
 use listenfd::ListenFd;
-use rand::random;
 use serde::Serialize;
 use serde_with::{serde_as, CommaSeparator, DisplayFromStr, StringWithSeparator};
 use sysinfo::{RefreshKind, System, SystemExt};
@@ -175,24 +173,33 @@ pub async fn make_server(
     ExternalWorkerOpts,
     hyper::Server<AddrIncoming, IntoMakeService<Router>>,
 ) {
-	log::debug!("generating secret ...");
-
-    let secret = Secret(
-        opts.secret_file
-            .map(|path| match fs::read_to_string(&path) {
-                Ok(secret) => secret,
-                Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                    let secret = format!("{:032x}", random::<u128>());
-                    fs::write(&path, &secret).expect("create secret file");
-                    secret
+    let secret = match opts.secret_file {
+        Some(path) => match fs::read_to_string(&path) {
+            Ok(secret) if secret.len() >= 8 => {
+                log::debug!("loaded secret file {path:?}");
+                Secret(secret)
+            }
+            Ok(_) => {
+                log::error!("ignoring secret file {path:?} (too short)");
+                Secret::random()
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                let secret = Secret::random();
+                match fs::write(&path, &secret.0) {
+                    Ok(()) => log::warn!("created new secret file {path:?}"),
+                    Err(err) => log::error!("failed to create secret file {path:?}: {err}"),
                 }
-                Err(err) => panic!("secret file: {err}"),
-            })
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| format!("{:032x}", random::<u128>())),
-    );
-	
-	log::debug!("binding ...");
+                secret
+            }
+            Err(err) => {
+                log::error!("failed to load secret file {path:?}: {err}");
+                Secret::random()
+            }
+        },
+        None => Secret::random(),
+    };
+
+    log::debug!("binding ...");
 
     let listener = opts
         .bind
@@ -200,8 +207,8 @@ pub async fn make_server(
         .or_else(|| listen_fds.take_tcp_listener(0).transpose())
         .unwrap_or_else(|| TcpListener::bind("localhost:9670"))
         .expect("bind");
-	
-	log::debug!("spawning engine ...");
+
+    log::debug!("spawning engine ...");
 
     let engine = Engine::new(
         opts.engine.best(),

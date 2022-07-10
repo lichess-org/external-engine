@@ -1,16 +1,15 @@
+use std::{ffi::OsString, sync::Arc, time::Duration};
+
 use clap::Parser;
 use listenfd::ListenFd;
 use remote_uci::{make_server, Opts};
-use std::ffi::OsString;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Notify;
-use windows_service::service::{
-    ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType,
-};
 use windows_service::{
     define_windows_service,
-    service::ServiceControl,
+    service::{
+        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
+        ServiceType,
+    },
     service_control_handler::{self, ServiceControlHandlerResult},
     service_dispatcher,
 };
@@ -36,15 +35,15 @@ fn service_status(state: ServiceState, wait_hint: Duration) -> ServiceStatus {
 
 #[tokio::main]
 async fn service_main(args: Vec<OsString>) {
-	simple_logging::log_to_file("C:\\remote-uci.log", log::LevelFilter::Trace);
-	std::panic::set_hook(Box::new(|panic| {
-		log::error!("Panic: {:?}", panic);
-	}));
-	
-	log::debug!("Args: {:?}", args);
-	log::debug!("Std env args: {:?}", std::env::args());
-	
-	log::debug!("Registering service ...");
+    simple_logging::log_to_file("C:\\remote-uci.log", log::LevelFilter::Trace);
+    std::panic::set_hook(Box::new(|panic| {
+        log::error!("Panic: {:?}", panic);
+    }));
+
+    log::debug!("Args: {:?}", args);
+    log::debug!("Std env args: {:?}", std::env::args());
+
+    log::debug!("Registering service ...");
 
     let stop_rx = Arc::new(Notify::new());
     let stop_tx = Arc::clone(&stop_rx);
@@ -58,8 +57,8 @@ async fn service_main(args: Vec<OsString>) {
         _ => ServiceControlHandlerResult::NotImplemented,
     })
     .expect("register service");
-	
-	log::debug!("Start pending ...");
+
+    log::debug!("Start pending ...");
 
     status_handle
         .set_service_status(service_status(
@@ -67,27 +66,30 @@ async fn service_main(args: Vec<OsString>) {
             Duration::from_secs(60),
         ))
         .expect("set start pending");
-		
-	log::debug!("Making server ...");
-	
-	let opts = match Opts::try_parse() {
-		Ok(opts) => opts,
-		Err(err) => { log::error!("error: {err}"); panic!("invalid opts"); },
-	};
+
+    log::debug!("Making server ...");
+
+    let opts = match Opts::try_parse() {
+        Ok(opts) => opts,
+        Err(err) => {
+            log::error!("error: {err}");
+            panic!("invalid opts");
+        }
+    };
 
     let (_spec, server) = make_server(opts, ListenFd::empty()).await;
-	
-	log::debug!("Running server ...");
+
+    log::debug!("Running server ...");
 
     server
         .with_graceful_shutdown(async {
-			log::debug!("Set running ...");
+            log::debug!("Set running ...");
             status_handle
                 .set_service_status(service_status(ServiceState::Running, Duration::default()))
                 .expect("set running");
-			log::debug!("Waiting for shutdown event ...");
+            log::debug!("Waiting for shutdown event ...");
             stop_rx.notified().await;
-			log::debug!("Stop pending ...");
+            log::debug!("Stop pending ...");
             status_handle
                 .set_service_status(service_status(
                     ServiceState::StopPending,
@@ -97,8 +99,8 @@ async fn service_main(args: Vec<OsString>) {
         })
         .await
         .expect("bind");
-	
-	log::debug!("About to stop ...");
+
+    log::debug!("About to stop ...");
 
     status_handle
         .set_service_status(service_status(ServiceState::Stopped, Duration::default()))

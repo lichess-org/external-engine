@@ -16,6 +16,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use rand::random;
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{Mutex, MutexGuard, Notify},
@@ -51,6 +52,12 @@ pub struct Params {
     secret: Secret,
     #[serde(rename = "session")]
     _session: String,
+}
+
+impl Secret {
+    pub fn random() -> Secret {
+        Secret(format!("{:032x}", random::<u128>()))
+    }
 }
 
 impl PartialEq for Secret {
