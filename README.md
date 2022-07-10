@@ -6,7 +6,10 @@ Using engines running outside of the browser on https://lichess.org/analysis.
 Installing the official provider
 --------------------------------
 
-> :warning: :wrench: :hammer: This is still under development
+Provides Stockfish 15 for x86-64, built with profile-guided optimization,
+automatically selecting the best available binary for your CPU.
+
+:wrench: :hammer: This is still under development
 and potentially unstable. Please report issues on this repository.
 
 ### Ubuntu, Debian
@@ -26,16 +29,25 @@ http://localhost:9670/.
 Install [`remote-uci` from the AUR](https://aur.archlinux.org/packages/remote-uci). Then open the
 "External engine for Lichess" application or visit http://localhost:9670/.
 
-### Windows
+### Windows 10+
 
-Coming
+Download the latest installer from the [latest release](https://github.com/lichess-org/external-engine/releases).
 
 ### macOS
 
-Maybe later
+We do not provide a ready-made provider at this time.
 
-Protocol (still subject to change)
-----------------------------------
+Third party websites
+--------------------
+
+Providers can potentially be opened for use by other chess websites.
+Please make an issue or [get in contact](https://discord.gg/lichess) to discuss.
+
+Third party providers
+---------------------
+
+:wrench: :hammer: The protocol is subject to change.
+Please make an issue or [get in contact](https://discord.gg/lichess) to discuss.
 
 ### Overview
 

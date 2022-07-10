@@ -14,7 +14,6 @@ jobs:
           path: |
             stockfish/vendor/sde-external-9.0.0-2021-11-07-lin.tar.xz
             stockfish/vendor/x86_64-linux-musl-native.tgz
-            stockfish/vendor/sf_15.tar.gz
             stockfish/vendor/nn-6877cd24400e.nnue
           key: ${{ runner.os }}-stockfish-${{ hashFiles('stockfish/vendor/SHA256SUM') }}
       - run: ./deps.sh
@@ -33,8 +32,8 @@ jobs:
         with:
           name: external-engine-debian
           path: |
-            stockfish_15-1_amd64.deb
-            remote-uci_1-1_amd64.deb
+            stockfish_*_amd64.deb
+            remote-uci_*_amd64.deb
   windows:
     runs-on: windows-2019
     defaults:
