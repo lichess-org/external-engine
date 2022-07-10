@@ -124,7 +124,7 @@ jobs:
       - windows
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/download-artifact@
+      - uses: actions/download-artifact@v3
         with:
           name: external-engine-windows
       - uses: actions/create-release@v1
