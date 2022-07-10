@@ -202,7 +202,7 @@
         <UI>
             <!--<UIRef Id='WixUI_FeatureTree'/>-->
 			<UIRef Id="WixUI_Minimal" />
-            
+           
             <!--
               Enabling the EULA dialog in the installer is a three step process:
 
@@ -228,7 +228,7 @@
           the following `WixUILicenseRTF` tag and changing the `Value`
           attribute.
         -->
-        <!-- <WixVariable Id='WixUILicenseRtf' Value='Relative\Path\to\Eula.rtf'/> -->
+        <WixVariable Id='WixUILicenseRtf' Value='wix\Copying.rtf'/>
 
         
         <!--
