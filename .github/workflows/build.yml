@@ -142,5 +142,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: remote-uci-service.msi
-          asset_name: remote-uci-service-${{ github.ref }}.msi
+          asset_name: remote-uci-service.msi
           asset_content_type: application/octet-stream
