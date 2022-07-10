@@ -82,7 +82,7 @@ jobs:
           CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-avx512
           mingw32-make strip
           cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64-avx512.exe
-          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-vnni512
+          CXXFLAGS=-DNNUE_EMBEDDING_OFF mingw32-make -B -j2 ${PGO}build COMP=mingw CXX=g++ ARCH=x86-64-vnni512 SDE_PATH="$SDE_PATH"
           mingw32-make strip
           cp stockfish.exe ../../../../remote-uci-service/wix/stockfish-x86-64-vnni512.exe
           cp nn-*.nnue ../../../../remote-uci-service/wix/
