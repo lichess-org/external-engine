@@ -105,7 +105,6 @@ jobs:
         with:
           name: external-engine-debian
       - run: sudo apt-get install -y reprepro
-      - run: ls -R
       - run: reprepro --basedir gh-pages/debian includedeb bullseye stockfish_*_amd64.deb
       - run: reprepro --basedir gh-pages/debian includedeb bullseye remote-uci_*_amd64.deb
       - run: |
@@ -136,11 +135,12 @@ jobs:
           draft: true
           prerelease: false
         id: create_release
+      - run: ls -R
       - uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: remote-uci-*.msi
+          asset_path: external-engine-windows/remote-uci-*.msi
           asset_name: remote-uci.msi
           asset_content_type: application/octet-stream
