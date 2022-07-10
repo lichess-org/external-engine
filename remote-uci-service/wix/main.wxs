@@ -1,329 +1,102 @@
 <?xml version='1.0' encoding='windows-1252'?>
-<!--
-  Copyright (C) 2017 Christopher R. Field.
 
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-  http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
--->
-
-<!--
-  The "cargo wix" subcommand provides a variety of predefined variables available
-  for customization of this template. The values for each variable are set at
-  installer creation time. The following variables are available:
-
-  TargetTriple      = The rustc target triple name.
-  TargetEnv         = The rustc target environment. This is typically either
-                      "msvc" or "gnu" depending on the toolchain downloaded and
-                      installed.
-  TargetVendor      = The rustc target vendor. This is typically "pc", but Rust
-                      does support other vendors, like "uwp".
-  CargoTargetBinDir = The complete path to the binary (exe). The default would
-                      be "target\release\<BINARY_NAME>.exe" where
-                      "<BINARY_NAME>" is replaced with the name of each binary
-                      target defined in the package's manifest (Cargo.toml). If
-                      a different rustc target triple is used than the host,
-                      i.e. cross-compiling, then the default path would be
-                      "target\<CARGO_TARGET>\<CARGO_PROFILE>\<BINARY_NAME>.exe",
-                      where "<CARGO_TARGET>" is replaced with the "CargoTarget"
-                      variable value and "<CARGO_PROFILE>" is replaced with the
-                      value from the `CargoProfile` variable.
-  CargoTargetDir    = The path to the directory for the build artifacts, i.e.
-                      "target".
-  CargoProfile      = Either "debug" or `release` depending on the build
-                      profile. The default is "release".
-  Version           = The version for the installer. The default is the
-                      "Major.Minor.Fix" semantic versioning number of the Rust
-                      package.
--->
-
-<!--
-  Please do not remove these pre-processor If-Else blocks. These are used with
-  the `cargo wix` subcommand to automatically determine the installation
-  destination for 32-bit versus 64-bit installers. Removal of these lines will
-  cause installation errors.
--->
-<?if $(sys.BUILDARCH) = x64 or $(sys.BUILDARCH) = arm64 ?>
-    <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
+<?if $(sys.BUILDARCH) = x64 or $(sys.BUILDARCH) = arm64?>
+<?define PlatformProgramFilesFolder = "ProgramFiles64Folder"?>
 <?else ?>
-    <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
+<?define PlatformProgramFilesFolder = "ProgramFilesFolder"?>
 <?endif ?>
 
 <Wix xmlns='http://schemas.microsoft.com/wix/2006/wi' xmlns:util='http://schemas.microsoft.com/wix/UtilExtension'>
+  <Product Id='*' Name='External Engine' UpgradeCode='F4AE3357-6CE1-4C1B-A106-5EDEBF76CF9F' Manufacturer='Lichess' Language='1033' Codepage='1252' Version='$(var.Version)'>
+    <Package Id='*' Keywords='Installer' Description='External UCI engine provider for lichess.org' Manufacturer='Lichess' InstallerVersion='450' Languages='1033' Compressed='yes' InstallScope='perMachine' SummaryCodepage='1252' />
 
-    <Product
-        Id='*'
-        Name='External Engine'
-        UpgradeCode='F4AE3357-6CE1-4C1B-A106-5EDEBF76CF9F'
-        Manufacturer='Lichess'
-        Language='1033'
-        Codepage='1252'
-        Version='$(var.Version)'>
+    <MajorUpgrade Schedule='afterInstallInitialize' DowngradeErrorMessage='A newer version of remote-uci is already installed. Setup will now exit.' AllowSameVersionUpgrades='yes' />
 
-        <Package Id='*'
-            Keywords='Installer'
-            Description='External UCI engine provider for lichess.org'
-            Manufacturer='Lichess'
-            InstallerVersion='450'
-            Languages='1033'
-            Compressed='yes'
-            InstallScope='perMachine'
-            SummaryCodepage='1252'
-            />
+    <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1' />
 
-        <MajorUpgrade
-            Schedule='afterInstallInitialize'
-            DowngradeErrorMessage='A newer version of remote-uci is already installed. Setup will now exit.'
-			AllowSameVersionUpgrades='yes'/>
+    <Property Id='DiskPrompt' Value='External Engine Installation' />
+    <Property Id="URL" Value="http://localhost:9670" />
+    <Property Id='ARPPRODUCTICON' Value='ProductICO' />
+    <Property Id='ARPHELPLINK' Value='https://github.com/lichess-org/external-engine' />
 
-        <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1'/>
-        <Property Id='DiskPrompt' Value='External Engine Installation'/>
-		
-		<Property Id="URL" Value="http://localhost:9670" />
-
-        <Directory Id='TARGETDIR' Name='SourceDir'>
-            <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
-                <Directory Id='APPLICATIONFOLDER' Name='External Engine'>
-                    
-                    <!--
-                      Enabling the license sidecar file in the installer is a four step process:
-
-                      1. Uncomment the `Component` tag and its contents.
-                      2. Change the value for the `Source` attribute in the `File` tag to a path
-                         to the file that should be included as the license sidecar file. The path
-                         can, and probably should be, relative to this file.
-                      3. Change the value for the `Name` attribute in the `File` tag to the
-                         desired name for the file when it is installed alongside the `bin` folder
-                         in the installation directory. This can be omitted if the desired name is
-                         the same as the file name.
-                      4. Uncomment the `ComponentRef` tag with the Id attribute value of "License"
-                         further down in this file.
-                    -->
-                    <!--
-                    <Component Id='License' Guid='*'>
-                        <File Id='LicenseFile' Name='ChangeMe' DiskId='1' Source='C:\Path\To\File' KeyPath='yes'/>
-                    </Component>
-                    -->
-    <Component Id='nnue' Guid='*'>
-      <File
-        Id='nnue'
-        Name='nn-6877cd24400e.nnue'
-        DiskId='1'
-        Source='wix\nn-6877cd24400e.nnue'
-        KeyPath='yes'/>
-    </Component>
-    <Component Id='stockfish_x86_64' Guid='*'>
-      <File
-        Id='stockfish_x86_64'
-        Name='stockfish-x86-64.exe'
-        DiskId='1'
-        Source='wix\stockfish-x86-64.exe'
-        KeyPath='yes'/>
-    </Component>
-    <Component Id='stockfish_x86_64_sse3_popcnt' Guid='*'>
-      <File
-        Id='stockfish_x86_64_sse3_popcnt'
-        Name='stockfish-x86-64-sse3-popcnt.exe'
-        DiskId='1'
-        Source='wix\stockfish-x86-64-sse3-popcnt.exe'
-        KeyPath='yes'/>
-    </Component>
-    <Component Id='stockfish_x86_64_ssse3' Guid='*'>
-      <File
-        Id='stockfish_x86_64_ssse3'
-        Name='stockfish-x86-64-ssse3.exe'
-        DiskId='1'
-        Source='wix\stockfish-x86-64-ssse3.exe'
-        KeyPath='yes'/>
-    </Component>
-    <Component Id='stockfish_x86_64_sse41_popcnt' Guid='*'>
-      <File
-        Id='stockfish_x86_64_sse41_popcnt'
-        Name='stockfish-x86-64-sse41-popcnt.exe'
-        DiskId='1'
-        Source='wix\stockfish-x86-64-sse41-popcnt.exe'
-        KeyPath='yes'/>
-    </Component>
-    <Component Id='stockfish_x86_64_avx2' Guid='*'>
-      <File
-        Id='stockfish_x86_64_avx2'
-        Name='stockfish-x86-64-avx2.exe'
-        DiskId='1'
-        Source='wix\stockfish-x86-64-avx2.exe'
-        KeyPath='yes'/>
-    </Component>
-    <Component Id='stockfish_x86_64_bmi2' Guid='*'>
-      <File
-        Id='stockfish_x86_64_bmi2'
-        Name='stockfish-x86-64-bmi2.exe'
-        DiskId='1'
-        Source='wix\stockfish-x86-64-bmi2.exe'
-        KeyPath='yes'/>
-    </Component>
-    <Component Id='stockfish_x86_64_avx512' Guid='*'>
-      <File
-        Id='stockfish_x86_64_avx512'
-        Name='stockfish-x86-64-avx512.exe'
-        DiskId='1'
-        Source='wix\stockfish-x86-64-avx512.exe'
-        KeyPath='yes'/>
-    </Component>
-    <Component Id='stockfish_x86_64_vnni512' Guid='*'>
-      <File
-        Id='stockfish_x86_64_vnni512'
-        Name='stockfish-x86-64-vnni512.exe'
-        DiskId='1'
-        Source='wix\stockfish-x86-64-vnni512.exe'
-        KeyPath='yes'/>
-    </Component>
-                        <Component Id='remote_uci' Guid='*'>
-                            <File
-                                Id='exe0'
-                                Name='remote-uci-service.exe'
-                                DiskId='1'
-                                Source='$(var.CargoTargetBinDir)\remote-uci-service.exe'
-                                KeyPath='yes'/>
-							<ServiceInstall
-								ErrorControl='normal'
-								Id='remote_uci'
-								Name='External Engine'
-								Start='auto'
-								Type='ownProcess'
-								Vital='yes'
-        Arguments='--secret-file remote-uci.secret --engine "[#stockfish_x86_64]" --engine-x86-64-sse3-popcnt "[#stockfish_x86_64_sse3_popcnt]" --engine-x86-64-ssse3 "[#stockfish_x86_64_ssse3]" --engine-x86-64-sse41-popcnt "[#stockfish_x86_64_sse41_popcnt]" --engine-x86-64-avx2 "[#stockfish_x86_64_avx2]" --engine-x86-64-bmi2 "[#stockfish_x86_64_bmi2]" --engine-x86-64-avx512 "[#stockfish_x86_64_avx512]" --engine-x86-64-vnni512 "[#stockfish_x86_64_vnni512]"'
-								Description='External UCI engine provider for lichess.org'/>
-							<ServiceControl
-								Id='startService'
-								Start='install'
-								Stop='both'
-								Name='External Engine'
-								Remove='uninstall'
-								Wait='yes'/>
-                        </Component>
-                </Directory>
-            </Directory>
-			<Directory Id="ProgramMenuFolder">
-				<Directory Id="ApplicationProgramsFolder" Name="External engine for lichess.org"/>
-			</Directory>
+    <Directory Id='TARGETDIR' Name='SourceDir'>
+      <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
+        <Directory Id='APPLICATIONFOLDER' Name='External Engine'>
+          <Component Id='nnue' Guid='*'>
+            <File Id='nnue' Name='nn-6877cd24400e.nnue' DiskId='1' Source='wix\nn-6877cd24400e.nnue' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64' Guid='*'>
+            <File Id='stockfish_x86_64' Name='stockfish-x86-64.exe' DiskId='1' Source='wix\stockfish-x86-64.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_sse3_popcnt' Guid='*'>
+            <File Id='stockfish_x86_64_sse3_popcnt' Name='stockfish-x86-64-sse3-popcnt.exe' DiskId='1' Source='wix\stockfish-x86-64-sse3-popcnt.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_ssse3' Guid='*'>
+            <File Id='stockfish_x86_64_ssse3' Name='stockfish-x86-64-ssse3.exe' DiskId='1' Source='wix\stockfish-x86-64-ssse3.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_sse41_popcnt' Guid='*'>
+            <File Id='stockfish_x86_64_sse41_popcnt' Name='stockfish-x86-64-sse41-popcnt.exe' DiskId='1' Source='wix\stockfish-x86-64-sse41-popcnt.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_avx2' Guid='*'>
+            <File Id='stockfish_x86_64_avx2' Name='stockfish-x86-64-avx2.exe' DiskId='1' Source='wix\stockfish-x86-64-avx2.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_bmi2' Guid='*'>
+            <File Id='stockfish_x86_64_bmi2' Name='stockfish-x86-64-bmi2.exe' DiskId='1' Source='wix\stockfish-x86-64-bmi2.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_avx512' Guid='*'>
+            <File Id='stockfish_x86_64_avx512' Name='stockfish-x86-64-avx512.exe' DiskId='1' Source='wix\stockfish-x86-64-avx512.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='stockfish_x86_64_vnni512' Guid='*'>
+            <File Id='stockfish_x86_64_vnni512' Name='stockfish-x86-64-vnni512.exe' DiskId='1' Source='wix\stockfish-x86-64-vnni512.exe' KeyPath='yes' />
+          </Component>
+          <Component Id='remote_uci' Guid='*'>
+            <File Id='exe0' Name='remote-uci-service.exe' DiskId='1' Source='$(var.CargoTargetBinDir)\remote-uci-service.exe' KeyPath='yes' />
+            <ServiceInstall ErrorControl='normal' Id='remote_uci' Name='External Engine' Start='auto' Type='ownProcess' Vital='yes' Arguments='--secret-file remote-uci.secret --engine "[#stockfish_x86_64]" --engine-x86-64-sse3-popcnt "[#stockfish_x86_64_sse3_popcnt]" --engine-x86-64-ssse3 "[#stockfish_x86_64_ssse3]" --engine-x86-64-sse41-popcnt "[#stockfish_x86_64_sse41_popcnt]" --engine-x86-64-avx2 "[#stockfish_x86_64_avx2]" --engine-x86-64-bmi2 "[#stockfish_x86_64_bmi2]" --engine-x86-64-avx512 "[#stockfish_x86_64_avx512]" --engine-x86-64-vnni512 "[#stockfish_x86_64_vnni512]"' Description='External UCI engine provider for lichess.org' />
+            <ServiceControl Id='startService' Start='install' Stop='both' Name='External Engine' Remove='uninstall' Wait='yes' />
+          </Component>
         </Directory>
-		
-		<DirectoryRef Id="ApplicationProgramsFolder">
-			<Component Id="ApplicationShortcut" Guid="*">
-				<Shortcut Id="ApplicationStartMenuShortcut" 
-						  Name="External engine for lichess.org"
-						  Description="Register external UCI engine for analysis on lichess.org"
-						  Target="[URL]">
-				    <Icon Id='ShortcutICO' SourceFile='wix\Product.ico'/>
-				</Shortcut>
-				<RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall"/>
-				<RegistryValue Root="HKCU" Key="Software\Lichess\ExternalEngine" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
-			</Component>
-		</DirectoryRef>
-		
-        <Feature
-            Id='Binaries'
-            Title='Application'
-            Description='Installs external engine service and Stockfish'
-            Level='1'
-            ConfigurableDirectory='APPLICATIONFOLDER'
-            AllowAdvertise='no'
-            Display='expand'
-            Absent='disallow'>
-            
-            <!--
-              Uncomment the following `ComponentRef` tag to add the license
-              sidecar file to the installer.
-            -->
-            <!--<ComponentRef Id='License'/>-->
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="External engine for lichess.org" />
+      </Directory>
+    </Directory>
 
-      <ComponentRef Id='nnue'/>
-      <ComponentRef Id='stockfish_x86_64'/>
-      <ComponentRef Id='stockfish_x86_64_sse3_popcnt'/>
-      <ComponentRef Id='stockfish_x86_64_ssse3'/>
-      <ComponentRef Id='stockfish_x86_64_sse41_popcnt'/>
-      <ComponentRef Id='stockfish_x86_64_avx2'/>
-      <ComponentRef Id='stockfish_x86_64_bmi2'/>
-      <ComponentRef Id='stockfish_x86_64_avx512'/>
-      <ComponentRef Id='stockfish_x86_64_vnni512'/>
-      <ComponentRef Id='remote_uci'/>
-      <ComponentRef Id='ApplicationShortcut'/>
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="*">
+        <Shortcut Id="ApplicationStartMenuShortcut" Name="External engine for lichess.org" Description="Register external UCI engine for analysis on lichess.org" Target="[URL]">
+          <Icon Id='ShortcutICO' SourceFile='wix\Product.ico' />
+        </Shortcut>
+        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Lichess\ExternalEngine" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Icon Id='ProductICO' SourceFile='wix\Product.ico' />
+    <WixVariable Id='WixUILicenseRtf' Value='wix\Copying.rtf' />
+    <WixVariable Id='WixUIBannerBmp' Value='wix\Banner.bmp' />
+    <WixVariable Id='WixUIDialogBmp' Value='wix\Dialog.bmp' />
+
+    <Feature Id='Binaries' Title='Application' Description='Installs external engine service and Stockfish' Level='1' ConfigurableDirectory='APPLICATIONFOLDER' AllowAdvertise='no' Display='expand' Absent='disallow'>
+      <ComponentRef Id='nnue' />
+      <ComponentRef Id='stockfish_x86_64' />
+      <ComponentRef Id='stockfish_x86_64_sse3_popcnt' />
+      <ComponentRef Id='stockfish_x86_64_ssse3' />
+      <ComponentRef Id='stockfish_x86_64_sse41_popcnt' />
+      <ComponentRef Id='stockfish_x86_64_avx2' />
+      <ComponentRef Id='stockfish_x86_64_bmi2' />
+      <ComponentRef Id='stockfish_x86_64_avx512' />
+      <ComponentRef Id='stockfish_x86_64_vnni512' />
+      <ComponentRef Id='remote_uci' />
+      <ComponentRef Id='ApplicationShortcut' />
     </Feature>
 
-        <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
+    <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize' />
 
-        
-        <!--
-          Uncomment the following `Icon` and `Property` tags to change the product icon.
+    <UI>
+      <UIRef Id="WixUI_Minimal" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchBrowser">NOT REMOVE="ALL"</Publish>
+    </UI>
 
-          The product icon is the graphic that appears in the Add/Remove
-          Programs control panel for the application.
-        -->
-        <Icon Id='ProductICO' SourceFile='wix\Product.ico'/>
-        <Property Id='ARPPRODUCTICON' Value='ProductICO' />
-
-        <Property Id='ARPHELPLINK' Value='https://github.com/lichess-org/external-engine'/>
-        
-        <UI>
-            <!--<UIRef Id='WixUI_FeatureTree'/>-->
-			<UIRef Id="WixUI_Minimal" />
-           
-            <!--
-              Enabling the EULA dialog in the installer is a three step process:
-
-                1. Comment out or remove the two `Publish` tags that follow the
-                   `WixVariable` tag.
-                2. Uncomment the `<WixVariable Id='WixUILicenseRtf' Value='Path\to\Eula.rft'>` tag futher down
-                3. Replace the `Value` attribute of the `WixVariable` tag with
-                   the path to a RTF file that will be used as the EULA and
-                   displayed in the license agreement dialog.
-            -->
-            <!--<Publish Dialog='WelcomeDlg' Control='Next' Event='NewDialog' Value='CustomizeDlg' Order='99'>1</Publish>
-            <Publish Dialog='CustomizeDlg' Control='Back' Event='NewDialog' Value='WelcomeDlg' Order='99'>1</Publish>-->
-			<Publish Dialog="ExitDialog" 
-				Control="Finish" 
-				Event="DoAction" 
-				Value="LaunchBrowser">NOT REMOVE="ALL"</Publish>
-        </UI>
-		
-		<CustomAction Id="LaunchBrowser" Directory="APPLICATIONFOLDER" Return="asyncNoWait" ExeCommand="explorer.exe [URL]" />
-        
-        <!--
-          Enabling the EULA dialog in the installer requires uncommenting
-          the following `WixUILicenseRTF` tag and changing the `Value`
-          attribute.
-        -->
-        <WixVariable Id='WixUILicenseRtf' Value='wix\Copying.rtf'/>
-
-        
-        <!--
-          Uncomment the next `WixVaraible` tag to customize the installer's
-          Graphical User Interface (GUI) and add a custom banner image across
-          the top of each screen. See the WiX Toolset documentation for details
-          about customization.
-
-          The banner BMP dimensions are 493 x 58 pixels.
-        -->
-        <WixVariable Id='WixUIBannerBmp' Value='wix\Banner.bmp'/>
-
-        
-        <!--
-          Uncomment the next `WixVariable` tag to customize the installer's
-          Graphical User Interface (GUI) and add a custom image to the first
-          dialog, or screen. See the WiX Toolset documentation for details about
-          customization.
-
-          The dialog BMP dimensions are 493 x 312 pixels.
-        -->
-        <WixVariable Id='WixUIDialogBmp' Value='wix\Dialog.bmp'/>
-
-    </Product>
-
+    <CustomAction Id="LaunchBrowser" Directory="APPLICATIONFOLDER" Return="asyncNoWait" ExeCommand="explorer.exe [URL]" />
+  </Product>
 </Wix>
