@@ -20,3 +20,8 @@ listenfd = "1.0.0"
 
 [build-dependencies]
 winres = "0.1.12"
+
+[package.metadata.winres]
+OriginalFilename = "remote-uci-service.exe"
+FileDescription = "External engine for lichess.org"
+CompanyName = "lichess.org"
