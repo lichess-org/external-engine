@@ -3,7 +3,7 @@ Description=External engine for Lichess
 Requires=remote-uci.socket
 
 [Service]
-ExecStart=/usr/bin/remote-uci --secret-file /etc/remote-uci.secret stockfish
+ExecStart=/usr/bin/remote-uci --secret-file /etc/remote-uci.secret --engine stockfish
 User=remote-uci
 Group=remote-uci
 PrivateTmp=true
