@@ -7,7 +7,7 @@ elif grep -wq avx512f /proc/cpuinfo && grep -wq avx512bw /proc/cpuinfo; then
 elif grep -wq bmi2 /proc/cpuinfo; then
     if grep -wq GenuineIntel /proc/cpuinfo; then
         arch=x86-64-bmi2
-    elif grep -wq AuthenticAMD /proc/cpuinfo && [[ "$(grep --max-count=1 'cpu family' /proc/cpuinfo | sed -e 's/^.*: //')" -ge 25 ]]; then
+    elif grep -wq AuthenticAMD /proc/cpuinfo && expr "$(grep --max-count=1 'cpu family' /proc/cpuinfo | sed -e 's/^.*: //')" ">=" 25 > /dev/null; then
         arch=x86-64-bmi2
     else
         # On AMD, bmi2 is emulated before Zen 3, so that using it is a slowdown
