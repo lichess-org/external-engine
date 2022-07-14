@@ -10,11 +10,13 @@ RUN cd vendor && \
 ENV SDE_PATH /stockfish/vendor/sde-external-9.0.0-2021-11-07-lin/sde64
 ENV CXX /stockfish/vendor/x86_64-linux-musl-native/bin/x86_64-linux-musl-g++
 ENV STRIP /stockfish/vendor/x86_64-linux-musl-native/bin/strip
+ARG BUILD_THREADS=2
 RUN mkdir -p usr/lib/stockfish && \
     cd vendor/Stockfish/src && \
     cp nn-*.nnue ../../../usr/lib/stockfish/ && \
     for arch in "x86-64-vnni512" "x86-64-avx512" "x86-64-bmi2" "x86-64-avx2" "x86-64-sse41-popcnt" "x86-64-ssse3" "x86-64-sse3-popcnt" "x86-64"; do \
-        LDFLAGS=-static CXXFLAGS=-DNNUE_EMBEDDING_OFF make -B -j2 profile-build COMP=gcc CXX=${CXX} ARCH=${arch} EXE=stockfish-${arch} && \
+        echo "Build Threads: ${BUILD_THREADS}" && \
+        LDFLAGS=-static CXXFLAGS=-DNNUE_EMBEDDING_OFF make -B -j${BUILD_THREADS} profile-build COMP=gcc CXX=${CXX} ARCH=${arch} EXE=stockfish-${arch} && \
         ${STRIP} stockfish-${arch} && \
         cp stockfish-${arch} ../../../usr/lib/stockfish/; \
     done
@@ -54,4 +56,4 @@ COPY --from=remote-uci /remote-uci_1-1_amd64.deb .
 RUN dpkg -i /remote-uci_*_amd64.deb
 EXPOSE 9670/tcp
 ENV REMOTE_UCI_LOG info
-CMD /usr/bin/remote-uci --bind 0.0.0.0:9670 --engine stockfish
+ENTRYPOINT [ "/usr/bin/remote-uci", "--bind", "0.0.0.0:9670", "--engine", "stockfish"]
