@@ -1,0 +1,4 @@
+Component: main
+Origin: lichess-org.github.io/external-engine/debian
+Label: lichess-org.github.io/external-engine/debian
+Architecture: amd64

@@ -1,0 +1,5 @@
+Origin: lichess-org.github.io/external-engine/debian
+Label: lichess-org.github.io/external-engine/debian
+Codename: bullseye
+Architectures: amd64
+Components: main
