@@ -10,6 +10,24 @@ Installing the official provider
 Provides Stockfish 15 for 64-bit x86 platforms, built with profile-guided
 optimization, automatically selecting the best available binary for your CPU.
 
+### Docker/Docker Compose
+
+#### Docker
+
+```sh
+sh run-docker.sh
+```
+
+#### Docker Compose
+
+```sh
+./deps.sh
+docker-compose up
+```
+
+Then open the "External engine for Lichess" application or visit
+http://localhost:9670/.
+
 ### Ubuntu, Debian
 
 ```sh

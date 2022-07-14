@@ -1,0 +1,17 @@
+# docker-compose.yml
+version: '3.5'
+
+services:
+  remote-uci:
+    container_name: remote-uci-engine
+    image: external-engine
+    # Uncomment the line below and add any additional arguments to pass to remote-uci
+    #command: [ "--publish-addr", "stockfish.example.net", "--publish-addr-tls", "--max-threads", "6" ]
+    build: 
+      context: ./
+      args:
+        # For faster builds set this to the number of CPU threads on the system
+        BUILD_THREADS: 2
+    ports:
+      - "127.0.0.1:9670:9670"
+    restart: unless-stopped
