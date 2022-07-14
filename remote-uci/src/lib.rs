@@ -31,6 +31,7 @@ use crate::{
     ws::{Secret, SharedEngine},
 };
 
+
 /// External UCI engine provider for lichess.org.
 #[derive(Debug, Parser)]
 #[clap(version)]
@@ -40,6 +41,12 @@ pub struct Opts {
     /// Bind server on this socket address.
     #[clap(long)]
     bind: Option<SocketAddr>,
+    /// The publically accessible address used when registering with lichess
+    #[clap(long)]
+    publish_addr: Option<String>,
+    /// Pass this flag if the public_addr endpoint uses TLS
+    #[clap(long)]
+    publish_addr_tls: bool,
     /// Overwrite engine name.
     #[clap(long)]
     name: Option<String>,
@@ -167,6 +174,13 @@ fn available_memory() -> u64 {
     (sys.available_memory() / 1024).next_power_of_two() / 2
 }
 
+fn get_external_protocol(tls: bool) -> String {
+    match tls {
+        true => "wss".to_string(),
+        false => "ws".to_string(),
+    }
+}
+
 pub async fn make_server(
     opts: Opts,
     mut listen_fds: ListenFd,
@@ -234,9 +248,13 @@ pub async fn make_server(
         log::error!("Could not start engine: {err}");
         err
     })?;
-
+    
     let spec = ExternalWorkerOpts {
-        url: format!("ws://{}/socket", listener.local_addr().expect("local addr")),
+        url: format!(
+                 "{}://{}/socket",
+                 get_external_protocol(opts.publish_addr_tls),
+                 opts.publish_addr.unwrap_or(listener.local_addr().expect("local addr").to_string())
+        ),
         secret: secret.clone(),
         max_threads: engine.max_threads(),
         max_hash: engine.max_hash(),
