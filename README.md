@@ -46,7 +46,7 @@ Install [`remote-uci` from the AUR](https://aur.archlinux.org/packages/remote-uc
 
 ### Windows 10+
 
-Download the latest installer from the [latest release](https://github.com/lichess-org/external-engine/releases).
+~~Download the latest installer from the [latest release](https://github.com/lichess-org/external-engine/releases).~~ Coming soon.
 
 ### macOS
 
