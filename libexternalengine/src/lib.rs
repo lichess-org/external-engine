@@ -1,5 +1,7 @@
 #[repr(C)]
 struct EngineConfig {
+    id: *const i8,
+    machine_name: *const i8,
     auth_token: *const i8,
     engine_path: *const i8,
     max_hash: i32,
