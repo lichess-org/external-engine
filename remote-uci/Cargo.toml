@@ -25,7 +25,7 @@ serde_with = "1.13.0"
 shakmaty = "0.21.2"
 sysinfo = "0.24.5"
 thiserror = "1.0.31"
-tokio = { version = "1.18.0", features = ["rt", "macros", "sync", "process"] }
+tokio = { version = "1.18.0", features = ["rt", "macros", "sync", "process", "signal"] }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 raw-cpuid = "10.3.0"

@@ -18,6 +18,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let (spec, server) = make_server(Opts::parse(), ListenFd::from_env()).await?;
     println!("{}", spec.registration_url());
-    server.await?;
+    server.with_graceful_shutdown(shutdown_signal()).await?;
     Ok(())
+}
+
+async fn shutdown_signal() {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Expect shutdown signal handler");
+    println!("\nRecieved Sigterm, shutting down gracefully...");
 }
