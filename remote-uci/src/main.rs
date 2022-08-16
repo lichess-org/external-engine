@@ -3,6 +3,7 @@ use std::error::Error;
 use clap::Parser;
 use listenfd::ListenFd;
 use remote_uci::{make_server, Opts};
+use tokio::signal::unix::{signal, SignalKind};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -26,5 +27,5 @@ async fn shutdown_signal() {
     tokio::signal::ctrl_c()
         .await
         .expect("Expect shutdown signal handler");
-    println!("\nRecieved Sigterm, shutting down gracefully...");
+    println!("\nRecieved SIGINT, shutting down gracefully...");
 }
