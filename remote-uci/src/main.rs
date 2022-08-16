@@ -3,7 +3,6 @@ use std::error::Error;
 use clap::Parser;
 use listenfd::ListenFd;
 use remote_uci::{make_server, Opts};
-use tokio::signal::unix::{signal, SignalKind};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
