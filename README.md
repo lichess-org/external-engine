@@ -50,7 +50,7 @@ Install [`remote-uci` from the AUR](https://aur.archlinux.org/packages/remote-uc
 
 ~~Download the latest installer from the [latest release](https://github.com/lichess-org/external-engine/releases).~~ Coming soon.
 
-#### Powershell
+#### PowerShell
 
 ```sh
 $ .\RunDocker.ps1
