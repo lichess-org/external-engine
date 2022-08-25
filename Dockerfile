@@ -7,9 +7,11 @@ RUN cd vendor && \
     tar xf sde-external-9.0.0-2021-11-07-lin.tar.xz && \
     tar xf x86_64-linux-musl-native.tgz && \
     mv nn-6877cd24400e.nnue Stockfish/src
+
 ENV SDE_PATH /stockfish/vendor/sde-external-9.0.0-2021-11-07-lin/sde64
 ENV CXX /stockfish/vendor/x86_64-linux-musl-native/bin/x86_64-linux-musl-g++
 ENV STRIP /stockfish/vendor/x86_64-linux-musl-native/bin/strip
+
 ARG BUILD_THREADS=2
 RUN mkdir -p usr/lib/stockfish && \
     cd vendor/Stockfish/src && \
@@ -20,6 +22,7 @@ RUN mkdir -p usr/lib/stockfish && \
         ${STRIP} stockfish-${arch} && \
         cp stockfish-${arch} ../../../usr/lib/stockfish/; \
     done
+
 WORKDIR /stockfish_15-1_amd64
 RUN cp -R /stockfish/DEBIAN /stockfish/usr . && \
     md5sum $(find * -type f -not -path 'DEBIAN/*') > DEBIAN/md5sums && \
