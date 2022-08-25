@@ -10,19 +10,19 @@ Installing the official provider
 Provides Stockfish 15 for 64-bit x86 platforms, built with profile-guided
 optimization, automatically selecting the best available binary for your CPU.
 
-### Docker/Docker Compose
+### Docker & Docker Compose
 
 #### Docker
 
 ```sh
-sh run-docker.sh
+$ sh run-docker.sh
 ```
 
 #### Docker Compose
 
 ```sh
-./deps.sh
-docker-compose up
+$ ./deps.sh
+$ docker-compose up
 ```
 
 Then open the "External engine for Lichess" application or visit
@@ -44,9 +44,19 @@ http://localhost:9670/.
 Install [`remote-uci` from the AUR](https://aur.archlinux.org/packages/remote-uci). Then open the
 "External engine for Lichess" application or visit http://localhost:9670/.
 
-### Windows 10+
+### Windows
+
+#### Binary
 
 ~~Download the latest installer from the [latest release](https://github.com/lichess-org/external-engine/releases).~~ Coming soon.
+
+#### Powershell
+
+```sh
+$ .\RunDocker.ps1
+```
+
+Then visit http://localhost:9670/.
 
 ### macOS
 
