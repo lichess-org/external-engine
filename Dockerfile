@@ -20,33 +20,12 @@ RUN cp -R /stockfish/DEBIAN /stockfish/usr . && \
     cd / && \
     dpkg-deb --build stockfish_*
 
-FROM rust:1.62.0-slim AS remote-uci
-RUN rustup target add x86_64-unknown-linux-musl
-WORKDIR /remote-uci
-COPY remote-uci .
-RUN cargo build --release --target x86_64-unknown-linux-musl
-WORKDIR /remote-uci_1-1_amd64
-RUN mkdir -p usr/bin && \
-    cp -R /remote-uci/DEBIAN /remote-uci/usr . && \
-    cp /remote-uci/target/x86_64-unknown-linux-musl/release/remote-uci usr/bin/ && \
-    md5sum $(find * -type f -not -path 'DEBIAN/*') > DEBIAN/md5sums && \
-    cat DEBIAN/md5sums && \
-    cd / && \
-    dpkg-deb --build remote-uci_*
-
 FROM debian:bullseye-slim AS linter
 RUN apt-get update && apt-get install -y lintian
 COPY --from=stockfish /stockfish_15-1_amd64.deb .
 RUN lintian -I /stockfish_*_amd64.deb
-COPY --from=remote-uci /remote-uci_1-1_amd64.deb .
-RUN lintian -I /remote-uci_*_amd64.deb
 
 FROM debian:bullseye-slim
-RUN apt-get update && apt-get install -y openssl
 COPY --from=stockfish /stockfish_15-1_amd64.deb .
 RUN dpkg -i /stockfish_*_amd64.deb
-COPY --from=remote-uci /remote-uci_1-1_amd64.deb .
-RUN dpkg -i /remote-uci_*_amd64.deb
-EXPOSE 9670/tcp
-ENV REMOTE_UCI_LOG info
-ENTRYPOINT [ "/usr/bin/remote-uci", "--bind", "0.0.0.0:9670", "--engine", "stockfish"]
+ENTRYPOINT ["/usr/bin/stockfish"]
