@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=External Engine for Lichess
-GenericName=Chess analysis
-Exec=xdg-open http://localhost:9670/
-Icon=lichess
-Categories=Game;
-Keywords=chess;remote;uci;

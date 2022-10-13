@@ -1,7 +1,0 @@
-Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: remote-uci
-Source: https://github.com/lichess-org/external-engine
-
-Files: *
-Copyright: Niklas Fiekas
-License: GPL-3.0+

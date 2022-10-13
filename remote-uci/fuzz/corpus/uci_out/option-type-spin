@@ -1,1 +1,0 @@
-option name Threads type spin default 1 min 1 max 512

@@ -1,5 +1,0 @@
-[workspace]
-members = ["remote-uci", "remote-uci-service", "libexternalengine"]
-
-[profile.release]
-strip = true

@@ -1,1 +1,0 @@
-option name UCI_Variant type combo default chess var 3check var antichess
