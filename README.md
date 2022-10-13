@@ -1,5 +1,7 @@
-External engine (alpha)
-=======================
+External engine (alpha 2)
+=========================
+
+:boom: The alpha is currently broken and will be back soon.
 
 Using engines running outside of the browser for
 [analysis on lichess.org](https://lichess.org/analysis).
