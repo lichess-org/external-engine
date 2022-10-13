@@ -52,6 +52,7 @@ def main(args):
     engine = Engine(args)
     engine.uci()
     engine.setoption("UCI_AnalyseMode", "true")
+    engine.setoption("UCI_Chess960", "true")
 
     http = requests.Session()
     http.headers["Authorization"] = f"Bearer {args.token}"
