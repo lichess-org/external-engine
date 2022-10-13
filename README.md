@@ -29,12 +29,11 @@ An official (more user-friendly) provider is under development.
 Will provide Stockfish 15 for 64-bit x86 platforms, built with profile-guided
 optimization, automatically selecting the best available binary for your CPU.
 
-Third party providers
----------------------
+Third party clients and providers
+---------------------------------
 
 > :wrench: :hammer: The protocol is subject to change.
 > Please make an issue or [get in contact](https://discord.gg/lichess) to discuss.
 
-Lichess provides a reference implementation for an external engine provider.
-Third parties can also
-[implement their own engine providers](https://lichess.org/api#tag/External-engine-(draft)).
+Lichess provides an
+[HTTP API for third-party clients and providers](https://lichess.org/api#tag/External-engine-(draft)).
