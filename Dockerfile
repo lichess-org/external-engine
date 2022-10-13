@@ -9,7 +9,7 @@ RUN mkdir -p usr/lib/stockfish && \
     cp nn-*.nnue ../../../usr/lib/stockfish/ && \
     for arch in "x86-64-vnni512" "x86-64-avx512" "x86-64-bmi2" "x86-64-avx2" "x86-64-sse41-popcnt" "x86-64-ssse3" "x86-64-sse3-popcnt" "x86-64"; do \
         CXXFLAGS=-DNNUE_EMBEDDING_OFF make -B "-j${BUILD_THREADS}" profile-build ARCH=${arch} EXE=stockfish-${arch} && \
-        ${STRIP} stockfish-${arch} && \
+        make strip EXE=stockfish-${arch} && \
         cp stockfish-${arch} ../../../usr/lib/stockfish/; \
     done
 WORKDIR /stockfish_15-1_amd64
