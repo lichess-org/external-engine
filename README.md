@@ -79,17 +79,3 @@ Third party providers
 Lichess provides a reference implementation for an external engine provider.
 Third parties can also
 [implement their own engine providers](https://lichess.org/api#tag/External-engine-(draft)).
-
-### Engine requirements
-
-To properly work on the Lichess analysis board, engines must support:
-
-* `UCI_Chess960` (enable always!)
-* `MultiPV`
-* `info` with
-  - `depth`
-  - `multipv` (between 1 and 5)
-  - `score`
-  - `nodes`
-  - `time`
-  - `pv`
