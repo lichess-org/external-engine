@@ -12,7 +12,6 @@ RUN mkdir -p usr/lib/stockfish && \
         ${STRIP} stockfish-${arch} && \
         cp stockfish-${arch} ../../../usr/lib/stockfish/; \
     done
-
 WORKDIR /stockfish_15-1_amd64
 RUN cp -R /stockfish/DEBIAN /stockfish/usr . && \
     md5sum $(find * -type f -not -path 'DEBIAN/*') > DEBIAN/md5sums && \
@@ -22,10 +21,10 @@ RUN cp -R /stockfish/DEBIAN /stockfish/usr . && \
 
 FROM debian:bullseye-slim AS linter
 RUN apt-get update && apt-get install -y lintian
-COPY --from=stockfish /stockfish_15-1_amd64.deb .
+COPY --from=builder /stockfish_15-1_amd64.deb .
 RUN lintian -I /stockfish_*_amd64.deb
 
 FROM debian:bullseye-slim
-COPY --from=stockfish /stockfish_15-1_amd64.deb .
+COPY --from=builder /stockfish_15-1_amd64.deb .
 RUN dpkg -i /stockfish_*_amd64.deb
 ENTRYPOINT ["/usr/bin/stockfish"]
