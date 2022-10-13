@@ -29,12 +29,6 @@ An official (more user-friendly) provider is under development.
 Will provide Stockfish 15 for 64-bit x86 platforms, built with profile-guided
 optimization, automatically selecting the best available binary for your CPU.
 
-Third party websites
---------------------
-
-Providers can potentially be opened for use by other chess websites.
-Please make an issue or [get in contact](https://discord.gg/lichess) to discuss.
-
 Third party providers
 ---------------------
 
