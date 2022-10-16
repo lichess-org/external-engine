@@ -59,6 +59,10 @@ def main(args):
         try:
             res = ok(http.post(f"{args.broker}/api/external-engine/work", json={"providerSecret": secret}))
             if res.status_code != 200:
+                if engine is not None and engine.idle_time() > args.keep_alive:
+                    logging.info("Terminating idle engine")
+                    engine.terminate()
+                    engine = None
                 continue
             job = res.json()
         except requests.exceptions.RequestException as err:
@@ -71,10 +75,16 @@ def main(args):
 
         try:
             logging.info("Handling job %s", job["id"])
+            if engine is None:
+                engine = Engine(args)
             with engine.analyse(job) as analysis_stream:
                 ok(http.post(f"{args.broker}/api/external-engine/work/{job['id']}", data=analysis_stream))
         except requests.exceptions.ConnectionError:
             logging.info("Connection closed while streaming analysis")
+        except EOFError:
+            logging.exception("Engine died")
+            engine = None
+            time.sleep(5)
 
 
 class Engine:
@@ -84,10 +94,17 @@ class Engine:
         self.session = None
         self.hash = None
         self.threads = None
+        self.last_used = time.monotonic()
 
         self.uci()
         self.setoption("UCI_AnalyseMode", "true")
         self.setoption("UCI_Chess960", "true")
+
+    def idle_time(self):
+        return time.monotonic() - self.last_used
+
+    def terminate(self):
+        self.process.terminate()
 
     def send(self, command):
         logging.debug("%d << %s", self.process.pid, command)
@@ -169,21 +186,24 @@ class Engine:
             for _ in analysis:
                 pass
 
+        self.last_used = time.monotonic()
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--name", default="External engine alpha 2", help="Engine name to register")
+    parser.add_argument("--name", default="Alpha 2", help="Engine name to register")
     parser.add_argument("--engine", help="Shell command to launch UCI engine", required=True)
     parser.add_argument("--lichess", default="https://lichess.org", help="Defaults to https://lichess.org")
     parser.add_argument("--broker", default="https://engine.lichess.ovh", help="Defaults to https://engine.lichess.ovh")
     parser.add_argument("--token", default=os.environ.get("LICHESS_API_TOKEN"), help="API token with engine:read and engine:write scopes")
     parser.add_argument("--provider-secret", default=os.environ.get("PROVIDER_SECRET"), help="Optional fixed provider secret")
-    parser.add_argument("--deep-depth", default=99)
-    parser.add_argument("--shallow-depth", default=25)
-    parser.add_argument("--max-threads", default=multiprocessing.cpu_count(), help="Maximum number of available threads")
-    parser.add_argument("--max-hash", default=512, help="Maximum hash table size in MiB")
+    parser.add_argument("--deep-depth", type=int, default=99)
+    parser.add_argument("--shallow-depth", type=int, default=25)
+    parser.add_argument("--max-threads", type=int, default=multiprocessing.cpu_count(), help="Maximum number of available threads")
+    parser.add_argument("--max-hash", type=int, default=512, help="Maximum hash table size in MiB")
+    parser.add_argument("--keep-alive", type=int, default=120, help="Number of seconds to keep an idle/unused engine process around")
 
     try:
         import argcomplete
