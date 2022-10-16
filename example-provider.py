@@ -50,10 +50,6 @@ def register_engine(args, http):
 
 def main(args):
     engine = Engine(args)
-    engine.uci()
-    engine.setoption("UCI_AnalyseMode", "true")
-    engine.setoption("UCI_Chess960", "true")
-
     http = requests.Session()
     http.headers["Authorization"] = f"Bearer {args.token}"
     secret = register_engine(args, http)
@@ -84,9 +80,14 @@ def main(args):
 class Engine:
     def __init__(self, args):
         self.process = subprocess.Popen(args.engine, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
+        self.args = args
         self.session = None
         self.hash = None
         self.threads = None
+
+        self.uci()
+        self.setoption("UCI_AnalyseMode", "true")
+        self.setoption("UCI_Chess960", "true")
 
     def send(self, command):
         logging.debug("%d << %s", self.process.pid, command)
@@ -105,11 +106,11 @@ class Engine:
                 return line
 
     def recv_uci(self):
-        command_and_args = self.recv().split(None, 1)
-        if len(command_and_args) == 1:
-            return command_and_args[0], ""
+        command_and_params = self.recv().split(None, 1)
+        if len(command_and_params) == 1:
+            return command_and_params[0], ""
         else:
-            return command_and_args
+            return command_and_params
 
     def uci(self):
         self.send("uci")
@@ -148,16 +149,17 @@ class Engine:
             self.isready()
 
             self.send(f"position fen {work['initialFen']} moves {' '.join(work['moves'])}")
-            self.send(f"go depth {args.deep_depth if work['deep'] else args.shallow_depth}")
+            self.send(f"go depth {self.args.deep_depth if work['deep'] else self.args.shallow_depth}")
 
             while True:
-                line = self.recv()
-
-                if line.startswith("bestmove"):
+                command, params = self.recv_uci()
+                if command == "bestmove":
                     break
-
-                if "score" in line:
-                    yield (line + "\n").encode("utf-8")
+                elif command == "info":
+                    if "score" in params:
+                        yield (command + " " + params + "\n").encode("utf-8")
+                else:
+                    logging.warning("Unexpected engine command: %s", command)
 
         analysis = stream()
         try:
