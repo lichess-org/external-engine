@@ -131,26 +131,26 @@ class Engine:
 
     @contextlib.contextmanager
     def analyse(self, job):
-        def stream():
-            work = job["work"]
+        work = job["work"]
 
-            if work["sessionId"] != self.session:
-                self.session = work["sessionId"]
-                self.send("ucinewgame")
-                self.isready()
-
-            if self.threads != work["threads"]:
-                self.setoption("Threads", work["threads"])
-                self.threads = work["threads"]
-            if self.hash != work["hash"]:
-                self.setoption("Hash", work["hash"])
-                self.hash = work["hash"]
-            self.setoption("MultiPV", work["multiPv"])
+        if work["sessionId"] != self.session:
+            self.session = work["sessionId"]
+            self.send("ucinewgame")
             self.isready()
 
-            self.send(f"position fen {work['initialFen']} moves {' '.join(work['moves'])}")
-            self.send(f"go depth {self.args.deep_depth if work['deep'] else self.args.shallow_depth}")
+        if self.threads != work["threads"]:
+            self.setoption("Threads", work["threads"])
+            self.threads = work["threads"]
+        if self.hash != work["hash"]:
+            self.setoption("Hash", work["hash"])
+            self.hash = work["hash"]
+        self.setoption("MultiPV", work["multiPv"])
+        self.isready()
 
+        self.send(f"position fen {work['initialFen']} moves {' '.join(work['moves'])}")
+        self.send(f"go depth {self.args.deep_depth if work['deep'] else self.args.shallow_depth}")
+
+        def stream():
             while True:
                 command, params = self.recv_uci()
                 if command == "bestmove":
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--name", default="Example", help="Engine name to register")
+    parser.add_argument("--name", default="External engine alpha 2", help="Engine name to register")
     parser.add_argument("--engine", help="Shell command to launch UCI engine", required=True)
     parser.add_argument("--lichess", default="https://lichess.org", help="Defaults to https://lichess.org")
     parser.add_argument("--broker", default="https://engine.lichess.ovh", help="Defaults to https://engine.lichess.ovh")
