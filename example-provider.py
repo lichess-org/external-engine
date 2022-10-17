@@ -18,7 +18,8 @@ def ok(res):
     try:
         res.raise_for_status()
     except requests.exceptions.HTTPError:
-        logging.exception("Response: %s", res.text)
+        logging.error("Response: %s", res.text)
+        raise
     return res
 
 
@@ -67,8 +68,8 @@ def main(args):
             job = res.json()
         except requests.exceptions.RequestException as err:
             logging.error("Error while trying to acquire work: %s", err)
-            time.sleep(backoff)
             backoff = min(backoff * 1.5, 10)
+            time.sleep(backoff)
             continue
         else:
             backoff = 1
