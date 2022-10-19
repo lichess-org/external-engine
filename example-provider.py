@@ -82,6 +82,9 @@ def main(args):
                 ok(http.post(f"{args.broker}/api/external-engine/work/{job['id']}", data=analysis_stream))
         except requests.exceptions.ConnectionError:
             logging.info("Connection closed while streaming analysis")
+        except requests.exceptions.RequestException as err:
+            logging.exception("Error while submitting work")
+            time.sleep(5)
         except EOFError:
             logging.exception("Engine died")
             engine = None
