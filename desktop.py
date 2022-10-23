@@ -16,11 +16,14 @@ import http.server
 import urllib.parse
 import base64
 import threading
+import os.path
+
 
 def code_challenge(code_verifier):
     h = hashlib.sha256()
     h.update(code_verifier.encode("ascii"))
     return base64.urlsafe_b64encode(h.digest())
+
 
 class OAuthRequestHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -38,7 +41,7 @@ class OAuthRequestHandler(http.server.BaseHTTPRequestHandler):
             self.answer(403, "Mismatching sate")
             return
 
-        self.answer(200, "Nearly done ...")
+        self.answer(200, "Authorized. You can now return to the application.")
         self.server.access_token.cancel()
 
     def answer(self, status, text):
@@ -46,14 +49,18 @@ class OAuthRequestHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(text.encode("utf-8"))
 
+
 class OAuthServer(http.server.HTTPServer):
-    def __init__(self):
+    def __init__(self, access_token):
+        self.access_token = access_token
+
         self.code_verifier = secrets.token_urlsafe(32)
         self.state = secrets.token_urlsafe(32)
-        self.access_token = concurrent.futures.Future()
-        self.access_token.add_done_callback(self.access_token_callback)
+
         super().__init__(("127.0.0.1", 0), OAuthRequestHandler)
         threading.Thread(target=self.serve_forever, name="OAuthServer::serve_forever").start()
+
+        self.access_token.add_done_callback(self.access_token_callback)
 
     def access_token_callback(self, future):
         threading.Thread(target=self.shutdown, name="OAuthServer::shutdown").start()
@@ -78,14 +85,22 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("External engine")
 
+        self.login_button = QPushButton("Login")
+        self.setCentralWidget(self.login_button)
+#    access_token = concurrent.futures.Future()
+#    server = OAuthServer(access_token)
+#    print(server.authorization_url())
+#    sys.exit(0)
+
+class Resources:
+    def __init__(self):
+        self.favicon = QIcon(os.path.join(os.path.dirname(__file__), "favicon.png"))
+
 if __name__ == "__main__":
-    server = OAuthServer()
-    print(server.authorization_url())
-    sys.exit(0)
-
     app = QApplication(sys.argv)
-
+    resources = Resources()
     mainWindow = MainWindow()
     mainWindow.show()
-
+    trayIcon = QSystemTrayIcon(resources.favicon)
+    trayIcon.show()
     app.exec()
