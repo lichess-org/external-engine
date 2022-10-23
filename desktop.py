@@ -83,14 +83,19 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.res = Resources()
+
         self.setWindowTitle("External engine")
 
         self.login_button = QPushButton("Login")
         self.setCentralWidget(self.login_button)
-#    access_token = concurrent.futures.Future()
-#    server = OAuthServer(access_token)
-#    print(server.authorization_url())
-#    sys.exit(0)
+
+        self.tray_icon = QSystemTrayIcon(self.res.favicon)
+        self.tray_icon.show()
+
+    def closeEvent(self, event):
+        self.hide()
+        event.ignore()
 
 class Resources:
     def __init__(self):
@@ -101,6 +106,4 @@ if __name__ == "__main__":
     resources = Resources()
     mainWindow = MainWindow()
     mainWindow.show()
-    trayIcon = QSystemTrayIcon(resources.favicon)
-    trayIcon.show()
     app.exec()
