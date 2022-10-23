@@ -8,12 +8,14 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 
+import concurrent.futures
 import secrets
 import sys
 import hashlib
 import http.server
 import urllib.parse
 import base64
+import threading
 
 def code_challenge(code_verifier):
     h = hashlib.sha256()
@@ -37,6 +39,7 @@ class OAuthRequestHandler(http.server.BaseHTTPRequestHandler):
             return
 
         self.answer(200, "Nearly done ...")
+        self.server.access_token.cancel()
 
     def answer(self, status, text):
         self.send_response(status)
@@ -47,7 +50,13 @@ class OAuthServer(http.server.HTTPServer):
     def __init__(self):
         self.code_verifier = secrets.token_urlsafe(32)
         self.state = secrets.token_urlsafe(32)
+        self.access_token = concurrent.futures.Future()
+        self.access_token.add_done_callback(self.access_token_callback)
         super().__init__(("127.0.0.1", 0), OAuthRequestHandler)
+        threading.Thread(target=self.serve_forever, name="OAuthServer::serve_forever").start()
+
+    def access_token_callback(self, future):
+        threading.Thread(target=self.shutdown, name="OAuthServer::shutdown").start()
 
     def authorization_url(self):
         ip, port = self.server_address
@@ -72,7 +81,6 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     server = OAuthServer()
     print(server.authorization_url())
-    server.serve_forever()
     sys.exit(0)
 
     app = QApplication(sys.argv)
