@@ -21,22 +21,42 @@ def code_challenge(code_verifier):
     return base64.urlsafe_b64encode(h.digest())
 
 class OAuthRequestHandler(http.server.BaseHTTPRequestHandler):
-    pass
+    def do_GET(self):
+        url = urllib.parse.urlparse(self.path)
+        query = urllib.parse.parse_qs(url.query)
 
-class OAuthServer:
+        try:
+            code = query["code"][0]
+            state = query["state"][0]
+        except KeyError:
+            self.answer(400, "Did not receive authorization code and state")
+            return
+
+        if state != self.server.state:
+            self.answer(403, "Mismatching sate")
+            return
+
+        self.answer(200, "Nearly done ...")
+
+    def answer(self, status, text):
+        self.send_response(status)
+        self.end_headers()
+        self.wfile.write(text.encode("utf-8"))
+
+class OAuthServer(http.server.HTTPServer):
     def __init__(self):
         self.code_verifier = secrets.token_urlsafe(32)
         self.state = secrets.token_urlsafe(32)
+        super().__init__(("127.0.0.1", 0), OAuthRequestHandler)
 
-        self.server = http.server.HTTPServer(("127.0.0.1", 0), OAuthRequestHandler)
-        ip, port = self.server.server_address
-
-    def url(self):
+    def authorization_url(self):
+        ip, port = self.server_address
         params = urllib.parse.urlencode({
             "response_type": "code",
             "client_id": "com.github.lichess_org.external_engine",
             "code_challenge_method": "S256",
             "code_challenge": code_challenge(self.code_verifier),
+            "redirect_uri": f"http://{ip}:{port}/",
             "scope": "engine:read engine:write",
             "state": self.state,
         })
@@ -51,7 +71,8 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     server = OAuthServer()
-    print(server.url())
+    print(server.authorization_url())
+    server.serve_forever()
     sys.exit(0)
 
     app = QApplication(sys.argv)
