@@ -1,8 +1,6 @@
 External engine (alpha 2)
 =========================
 
-:boom: The alpha is currently broken and will be back soon.
-
 Using engines running outside of the browser for
 [analysis on lichess.org](https://lichess.org/analysis).
 
@@ -36,4 +34,4 @@ Third party clients and providers
 > Please make an issue or [get in contact](https://discord.gg/lichess) to discuss.
 
 Lichess provides an
-[HTTP API for third-party clients and providers](https://lichess.org/api#tag/External-engine-(draft)).
+[HTTP API for third-party clients and providers](https://lichess.org/api#tag/External-engine).
