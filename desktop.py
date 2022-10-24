@@ -90,12 +90,25 @@ class MainWindow(QMainWindow):
         self.login_button = QPushButton("Login")
         self.setCentralWidget(self.login_button)
 
+        self.shutdown_action = QAction("Shut down", self)
+        self.shutdown_action.triggered.connect(self.close)
+
+        application_menu = self.menuBar().addMenu("Application")
+        action = application_menu.addAction(self.shutdown_action)
+
         self.tray_icon = QSystemTrayIcon(self.res.favicon)
+        self.tray_icon.setContextMenu(application_menu)
         self.tray_icon.show()
 
+    def shut_down(self):
+        print("shut down")
+
     def closeEvent(self, event):
-        self.hide()
-        event.ignore()
+        if not event.spontaneous() and self.isVisible():
+            self.hide()
+            event.ignore()
+        else:
+            event.accept()
 
 class Resources:
     def __init__(self):
