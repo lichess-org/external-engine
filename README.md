@@ -17,7 +17,7 @@ Example provider
 
 3. Visit https://lichess.org/analysis
 
-4. Open the hamburger menu and select the *Example* provider
+4. Open the hamburger menu and select the *Alpha 2* provider
 
 Official provider
 -----------------
