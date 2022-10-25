@@ -95,9 +95,10 @@ class Engine:
     def __init__(self, args):
         self.process = subprocess.Popen(args.engine, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
         self.args = args
-        self.session = None
+        self.session_id = None
         self.hash = None
         self.threads = None
+        self.multi_pv = None
         self.last_used = time.monotonic()
 
         self.uci()
@@ -154,19 +155,26 @@ class Engine:
     def analyse(self, job):
         work = job["work"]
 
-        if work["sessionId"] != self.session:
-            self.session = work["sessionId"]
+        if work["sessionId"] != self.session_id:
+            self.session_id = work["sessionId"]
             self.send("ucinewgame")
             self.isready()
 
+        options_changed = False
         if self.threads != work["threads"]:
             self.setoption("Threads", work["threads"])
             self.threads = work["threads"]
+            options_changed = True
         if self.hash != work["hash"]:
             self.setoption("Hash", work["hash"])
             self.hash = work["hash"]
-        self.setoption("MultiPV", work["multiPv"])
-        self.isready()
+            options_changed = True
+        if self.multi_pv != work["multiPv"]:
+            self.setoption("MultiPV", work["multiPv"])
+            self.multi_pv = work["multiPv"]
+            options_changed = True
+        if options_changed:
+            self.isready()
 
         self.send(f"position fen {work['initialFen']} moves {' '.join(work['moves'])}")
         self.send(f"go depth {self.args.deep_depth if work['deep'] else self.args.shallow_depth}")
