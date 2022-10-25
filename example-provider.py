@@ -123,28 +123,30 @@ class Engine:
                 raise EOFError()
 
             line = line.rstrip()
-            logging.debug("%d >> %s", self.process.pid, line)
-            if line:
-                return line
+            if not line:
+                continue
 
-    def recv_uci(self):
-        command_and_params = self.recv().split(None, 1)
-        if len(command_and_params) == 1:
-            return command_and_params[0], ""
-        else:
-            return command_and_params
+            command_and_params = line.split(None, 1)
+
+            if command_and_params[0] != "info":
+                logging.debug("%d >> %s", self.process.pid, line)
+
+            if len(command_and_params) == 1:
+                return command_and_params[0], ""
+            else:
+                return command_and_params
 
     def uci(self):
         self.send("uci")
         while True:
-            line, _ = self.recv_uci()
+            line, _ = self.recv()
             if line == "uciok":
                 break
 
     def isready(self):
         self.send("isready")
         while True:
-            line, _ = self.recv_uci()
+            line, _ = self.recv()
             if line == "readyok":
                 break
 
@@ -181,7 +183,7 @@ class Engine:
 
         def stream():
             while True:
-                command, params = self.recv_uci()
+                command, params = self.recv()
                 if command == "bestmove":
                     break
                 elif command == "info":
