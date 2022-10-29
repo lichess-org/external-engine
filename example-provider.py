@@ -13,6 +13,7 @@ import secrets
 import subprocess
 import sys
 import time
+import threading
 
 
 def ok(res):
@@ -64,14 +65,17 @@ def register_engine(args, http, engine):
 
 
 def main(args):
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     engine = Engine(args)
     http = requests.Session()
     http.headers["Authorization"] = f"Bearer {args.token}"
     secret = register_engine(args, http, engine)
 
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     last_future = concurrent.futures.Future()
     last_future.set_result(None)
+
+    last_job_started = threading.Event()
+    last_job_started.set()
 
     backoff = 1
     while True:
@@ -91,19 +95,21 @@ def main(args):
         else:
             backoff = 1
 
+        last_job_started.wait()
+        engine.stop()
         last_future.result()
+        last_job_started.clear()
 
         if not engine.alive:
             engine = Engine(args)
+        last_future = executor.submit(handle_job, args, engine, job, last_job_started)
 
-        last_future = executor.submit(handle_job, args, http, engine, job)
 
-
-def handle_job(args, http, engine, job):
+def handle_job(args, engine, job, job_started):
     try:
         logging.info("Handling job %s", job["id"])
-        with engine.analyse(job) as analysis_stream:
-            ok(http.post(f"{args.broker}/api/external-engine/work/{job['id']}", data=analysis_stream, stream=True)).close()
+        with engine.analyse(job, job_started) as analysis_stream:
+            ok(requests.post(f"{args.broker}/api/external-engine/work/{job['id']}", data=analysis_stream))
     except requests.exceptions.ConnectionError:
         logging.info("Connection closed while streaming analysis")
     except requests.exceptions.RequestException as err:
@@ -112,6 +118,8 @@ def handle_job(args, http, engine, job):
     except EOFError:
         logging.exception("Engine died")
         time.sleep(5)
+    finally:
+        job_started.set()
 
 
 class Engine:
@@ -126,6 +134,7 @@ class Engine:
         self.supported_variants = []
         self.last_used = time.monotonic()
         self.alive = True
+        self.stop_lock = threading.Lock()
 
         self.uci()
         self.setoption("UCI_AnalyseMode", "true")
@@ -196,7 +205,7 @@ class Engine:
         self.send(f"setoption name {name} value {value}")
 
     @contextlib.contextmanager
-    def analyse(self, job):
+    def analyse(self, job, job_started):
         work = job["work"]
 
         if work["sessionId"] != self.session_id:
@@ -231,6 +240,8 @@ class Engine:
         else:
             self.send(f"go depth {self.args.default_depth}")
 
+        job_started.set()
+
         def stream():
             while True:
                 command, params = self.recv()
@@ -246,11 +257,16 @@ class Engine:
         try:
             yield analysis
         finally:
-            self.send("stop")
+            self.stop()
             for _ in analysis:
                 pass
 
         self.last_used = time.monotonic()
+
+    def stop(self):
+        if self.alive:
+            with self.stop_lock:
+                self.send("stop")
 
 
 if __name__ == "__main__":
