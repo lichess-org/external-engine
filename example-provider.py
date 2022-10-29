@@ -3,14 +3,15 @@
 """External engine provider example for lichess.org"""
 
 import argparse
+import concurrent.futures
+import contextlib
 import logging
-import requests
-import sys
+import multiprocessing
 import os
+import requests
 import secrets
 import subprocess
-import multiprocessing
-import contextlib
+import sys
 import time
 
 
@@ -68,15 +69,18 @@ def main(args):
     http.headers["Authorization"] = f"Bearer {args.token}"
     secret = register_engine(args, http, engine)
 
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    last_future = concurrent.futures.Future()
+    last_future.set_result(None)
+
     backoff = 1
     while True:
         try:
             res = ok(http.post(f"{args.broker}/api/external-engine/work", json={"providerSecret": secret}))
             if res.status_code != 200:
-                if engine is not None and engine.idle_time() > args.keep_alive:
+                if engine.alive and engine.idle_time() > args.keep_alive:
                     logging.info("Terminating idle engine")
                     engine.terminate()
-                    engine = None
                 continue
             job = res.json()
         except requests.exceptions.RequestException as err:
@@ -87,21 +91,27 @@ def main(args):
         else:
             backoff = 1
 
-        try:
-            logging.info("Handling job %s", job["id"])
-            if engine is None:
-                engine = Engine(args)
-            with engine.analyse(job) as analysis_stream:
-                ok(http.post(f"{args.broker}/api/external-engine/work/{job['id']}", data=analysis_stream))
-        except requests.exceptions.ConnectionError:
-            logging.info("Connection closed while streaming analysis")
-        except requests.exceptions.RequestException as err:
-            logging.exception("Error while submitting work")
-            time.sleep(5)
-        except EOFError:
-            logging.exception("Engine died")
-            engine = None
-            time.sleep(5)
+        last_future.result()
+
+        if not engine.alive:
+            engine = Engine(args)
+
+        last_future = executor.submit(handle_job, args, http, engine, job)
+
+
+def handle_job(args, http, engine, job):
+    try:
+        logging.info("Handling job %s", job["id"])
+        with engine.analyse(job) as analysis_stream:
+            ok(http.post(f"{args.broker}/api/external-engine/work/{job['id']}", data=analysis_stream, stream=True)).close()
+    except requests.exceptions.ConnectionError:
+        logging.info("Connection closed while streaming analysis")
+    except requests.exceptions.RequestException as err:
+        logging.exception("Error while submitting work")
+        time.sleep(5)
+    except EOFError:
+        logging.exception("Engine died")
+        time.sleep(5)
 
 
 class Engine:
@@ -115,6 +125,7 @@ class Engine:
         self.uci_variant = None
         self.supported_variants = []
         self.last_used = time.monotonic()
+        self.alive = True
 
         self.uci()
         self.setoption("UCI_AnalyseMode", "true")
@@ -127,6 +138,7 @@ class Engine:
 
     def terminate(self):
         self.process.terminate()
+        self.alive = False
 
     def send(self, command):
         logging.debug("%d << %s", self.process.pid, command)
@@ -137,6 +149,7 @@ class Engine:
         while True:
             line = self.process.stdout.readline()
             if line == "":
+                self.alive = False
                 raise EOFError()
 
             line = line.rstrip()
