@@ -23,7 +23,7 @@ def ok(res):
     return res
 
 
-def register_engine(args, http):
+def register_engine(args, http, engine):
     res = ok(http.get(f"{args.lichess}/api/external-engine"))
 
     secret = args.provider_secret or secrets.token_urlsafe(32)
@@ -34,6 +34,7 @@ def register_engine(args, http):
         "maxHash": args.max_hash,
         "shallowDepth": args.shallow_depth,
         "deepDepth": args.deep_depth,
+        "variants": ",".join(engine.supported_variants),
         "providerSecret": secret,
     }
 
@@ -53,7 +54,7 @@ def main(args):
     engine = Engine(args)
     http = requests.Session()
     http.headers["Authorization"] = f"Bearer {args.token}"
-    secret = register_engine(args, http)
+    secret = register_engine(args, http, engine)
 
     backoff = 1
     while True:
@@ -99,6 +100,8 @@ class Engine:
         self.hash = None
         self.threads = None
         self.multi_pv = None
+        self.uci_variant = None
+        self.supported_variants = []
         self.last_used = time.monotonic()
 
         self.uci()
@@ -141,9 +144,21 @@ class Engine:
     def uci(self):
         self.send("uci")
         while True:
-            line, _ = self.recv()
-            if line == "uciok":
+            command, args = self.recv()
+            if command == "option":
+                name = None
+                args = args.split()
+                while args:
+                    arg = args.pop(0)
+                    if arg == "name":
+                        name = args.pop(0)
+                    elif name == "UCI_Variant" and arg == "var":
+                        self.supported_variants.append(args.pop(0))
+            elif command == "uciok":
                 break
+
+        if self.supported_variants:
+            logging.info("Supported variants: %s", ", ".join(self.supported_variants))
 
     def isready(self):
         self.send("isready")
@@ -176,6 +191,10 @@ class Engine:
         if self.multi_pv != work["multiPv"]:
             self.setoption("MultiPV", work["multiPv"])
             self.multi_pv = work["multiPv"]
+            options_changed = True
+        if self.uci_variant != work["variant"]:
+            self.setoption("UCI_Variant", work["variant"])
+            self.uci_variant = work["variant"]
             options_changed = True
         if options_changed:
             self.isready()
