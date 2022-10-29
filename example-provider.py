@@ -284,7 +284,7 @@ if __name__ == "__main__":
     parser.add_argument("--default-depth", type=int, default=25)
     parser.add_argument("--max-threads", type=int, default=multiprocessing.cpu_count(), help="Maximum number of available threads")
     parser.add_argument("--max-hash", type=int, default=512, help="Maximum hash table size in MiB")
-    parser.add_argument("--keep-alive", type=int, default=120, help="Number of seconds to keep an idle/unused engine process around")
+    parser.add_argument("--keep-alive", type=int, default=300, help="Number of seconds to keep an idle/unused engine process around")
 
     try:
         import argcomplete
