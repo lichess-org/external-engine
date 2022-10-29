@@ -104,6 +104,8 @@ class Engine:
         self.uci()
         self.setoption("UCI_AnalyseMode", "true")
         self.setoption("UCI_Chess960", "true")
+        for name, value in args.setoption:
+            self.setoption(name, value)
 
     def idle_time(self):
         return time.monotonic() - self.last_used
@@ -209,6 +211,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--name", default="Alpha 2", help="Engine name to register")
     parser.add_argument("--engine", help="Shell command to launch UCI engine", required=True)
+    parser.add_argument("--setoption", nargs=2, action="append", default=[], metavar=("NAME", "VALUE"), help="Set a custom UCI option")
     parser.add_argument("--lichess", default="https://lichess.org", help="Defaults to https://lichess.org")
     parser.add_argument("--broker", default="https://engine.lichess.ovh", help="Defaults to https://engine.lichess.ovh")
     parser.add_argument("--token", default=os.environ.get("LICHESS_API_TOKEN"), help="API token with engine:read and engine:write scopes")
