@@ -74,9 +74,6 @@ def main(args):
     last_future = concurrent.futures.Future()
     last_future.set_result(None)
 
-    last_job_started = threading.Event()
-    last_job_started.set()
-
     backoff = 1
     while True:
         try:
@@ -95,14 +92,18 @@ def main(args):
         else:
             backoff = 1
 
-        last_job_started.wait()
-        engine.stop()
+        try:
+            engine.stop()
+        except EOFError:
+            pass
         last_future.result()
-        last_job_started.clear()
 
         if not engine.alive:
             engine = Engine(args)
-        last_future = executor.submit(handle_job, args, engine, job, last_job_started)
+
+        job_started = threading.Event()
+        last_future = executor.submit(handle_job, args, engine, job, job_started)
+        job_started.wait()
 
 
 def handle_job(args, engine, job, job_started):
