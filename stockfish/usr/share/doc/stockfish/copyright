@@ -1,7 +1,0 @@
-Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Stockfish
-Source: https://github.com/official-stockfish/Stockfish
-
-Files: *
-Copyright: Copyright 2022 the Stockfish AUTHORS
-License: GPL-3.0+
