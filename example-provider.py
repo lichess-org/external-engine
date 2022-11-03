@@ -31,14 +31,14 @@ def register_engine(args, http, engine):
     secret = args.provider_secret or secrets.token_urlsafe(32)
 
     variants = {
-        "chess": "standard",
-        "antichess": "antichess",
-        "atomic": "atomic",
-        "crazyhouse": "crazyhouse",
-        "horde": "horde",
-        "kingofthehill": "kingOfTheHill",
-        "racingkings": "racingKings",
-        "3check": "threeCheck",
+        "chess",
+        "antichess",
+        "atomic",
+        "crazyhouse",
+        "horde",
+        "kingofthehill",
+        "racingkings",
+        "3check",
     }
 
     registration = {
@@ -46,9 +46,7 @@ def register_engine(args, http, engine):
         "maxThreads": args.max_threads,
         "maxHash": args.max_hash,
         "defaultDepth": args.default_depth,
-        "shallowDepth": args.default_depth, # bc
-        "deepDepth": 246, # bc
-        "variants": [variants[variant] for variant in engine.supported_variants or ["chess"] if variant in variants],
+        "variants": [variant for variant in engine.supported_variants or ["chess"] if variant in variants],
         "providerSecret": secret,
     }
 
