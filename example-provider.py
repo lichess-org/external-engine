@@ -258,6 +258,9 @@ class Engine:
                     break
                 elif command == "info":
                     if "score" in params:
+                        if args.accept_bounds:
+                            params = params.replace('lowerbound ', '')
+                            params = params.replace('upperbound ', '')
                         yield (command + " " + params + "\n").encode("utf-8")
                 else:
                     logging.warning("Unexpected engine command: %s", command)
@@ -292,6 +295,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-hash", type=int, default=512, help="Maximum hash table size in MiB")
     parser.add_argument("--keep-alive", type=int, default=300, help="Number of seconds to keep an idle/unused engine process around")
     parser.add_argument("--log-level", default="info", choices=_LOG_LEVEL_MAP.keys(), help="Logging verbosity")
+    parser.add_argument("--accept-bounds", action='store_true', help="Show lowerbound/upperbound info")
 
     try:
         import argcomplete
