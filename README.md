@@ -9,11 +9,43 @@ Example provider
 
 1. Create a token at https://lichess.org/account/oauth/token/create?scopes[]=engine:read&scopes[]=engine:write
 
-2. Run:
+2. Install your favorite engine (Under Windows is it is recommended to place it directly in C. Under Unix choose usr/bin/YOUR_ENGINE_FOLDER/program)
+
+3. Install python3 in case you have not: https://www.python.org/downloads/
+
+4. Install pip3 - Packages 
+
+   First go into your project folder.
+
+   On Windows: 
+
+    ```
+      py -m ensurepip --upgrade
+      py -m pip install -r requirements.txt 
+    ```
+
+   On other systems:
+
+    ```
+      py3 -m ensurepip --upgrade
+      py3 -m pip install -r requirements.txt 
+    ```
+
+3. 
+
+   On Windows run:
 
    ```
-   LICHESS_API_TOKEN=lip_*** python3 example-provider.py --engine /usr/bin/stockfish
+   py3 example-provider.py --engine C:\YOUR_ENGINE_FOLDER\program.exe --token YOUR_TOKEN
    ```
+
+   On Unix run:
+
+   ```
+   LICHESS_API_TOKEN=YOUR_TOKEN python3 example-provider.py --engine /usr/bin/YOUR_ENGINE_FOLDER/program
+   ```
+
+   The connector should now run successful. 
 
 3. Visit https://lichess.org/analysis
 
@@ -35,3 +67,6 @@ Third party clients and providers
 
 Lichess provides an
 [HTTP API for third-party clients and providers](https://lichess.org/api#tag/External-engine).
+
+
+
