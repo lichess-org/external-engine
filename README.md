@@ -9,7 +9,8 @@ Example provider
 
 1. Create a token at https://lichess.org/account/oauth/token/create?scopes[]=engine:read&scopes[]=engine:write
 
-2. Install your favorite engine (Under Windows is it is recommended to place it directly in C. Under Unix choose usr/bin/YOUR_ENGINE_FOLDER/program)
+2. Install your favorite engine. 
+   (Under Windows is it is recommended to place it directly in ```C```. Under Unix choose ```usr/bin/YOUR_ENGINE_FOLDER/program```)
 
 3. Install python3 in case you have not: https://www.python.org/downloads/
 
