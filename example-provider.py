@@ -15,6 +15,15 @@ import sys
 import time
 import threading
 
+_LOG_LEVEL_MAP = {
+        "critical": logging.CRITICAL,
+        "error": logging.CRITICAL,
+        "warning": logging.WARNING,
+        "info": logging.INFO,
+        "debug": logging.DEBUG,
+        "notset": logging.NOTSET,
+        }
+
 
 def ok(res):
     try:
@@ -269,8 +278,6 @@ class Engine:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--name", default="Alpha 2", help="Engine name to register")
     parser.add_argument("--engine", help="Shell command to launch UCI engine", required=True)
@@ -283,6 +290,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-threads", type=int, default=multiprocessing.cpu_count(), help="Maximum number of available threads")
     parser.add_argument("--max-hash", type=int, default=512, help="Maximum hash table size in MiB")
     parser.add_argument("--keep-alive", type=int, default=300, help="Number of seconds to keep an idle/unused engine process around")
+    parser.add_argument("--log-level", default="info", choices=_LOG_LEVEL_MAP.keys(), help="Logging verbosity")
 
     try:
         import argcomplete
@@ -292,6 +300,8 @@ if __name__ == "__main__":
         argcomplete.autocomplete(parser)
 
     args = parser.parse_args()
+
+    logging.basicConfig(level=_LOG_LEVEL_MAP[args.log_level])
 
     if not args.token:
         print(f"Need LICHESS_API_TOKEN environment variable from {args.lichess}/account/oauth/token/create?scopes[]=engine:read&scopes[]=engine:write")
