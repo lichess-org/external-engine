@@ -173,10 +173,9 @@ class Engine:
             if not line:
                 continue
 
-            command_and_params = line.split(None, 1)
+            logging.debug("%d >> %s", self.process.pid, line)
 
-            if command_and_params[0] != "info":
-                logging.debug("%d >> %s", self.process.pid, line)
+            command_and_params = line.split(None, 1)
 
             if len(command_and_params) == 1:
                 return command_and_params[0], ""
