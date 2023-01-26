@@ -277,7 +277,7 @@ class Engine:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, fromfile_prefix_chars='@')
     parser.add_argument("--name", default="Alpha 2", help="Engine name to register")
     parser.add_argument("--engine", help="Shell command to launch UCI engine", required=True)
     parser.add_argument("--setoption", nargs=2, action="append", default=[], metavar=("NAME", "VALUE"), help="Set a custom UCI option")
