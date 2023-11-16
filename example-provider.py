@@ -242,7 +242,9 @@ class Engine:
 
         self.send(f"position fen {work['initialFen']} moves {' '.join(work['moves'])}")
 
-        if work["infinite"]:
+        if work["movetime"]:
+            self.send(f"go movetime {work['movetime']}")
+        elif work["movetime"] is None:
             self.send("go infinite")
         else:
             self.send(f"go depth {self.args.default_depth}")
