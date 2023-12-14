@@ -84,7 +84,7 @@ def main(args):
     backoff = 1
     while True:
         try:
-            res = ok(http.post(f"{args.broker}/api/external-engine/work", json={"providerSecret": secret}))
+            res = ok(http.post(f"{args.broker}/api/external-engine/work", json={"providerSecret": secret}, timeout=12))
             if res.status_code != 200:
                 if engine.alive and engine.idle_time() > args.keep_alive:
                     logging.info("Terminating idle engine")
@@ -244,8 +244,6 @@ class Engine:
 
         if work["movetime"]:
             self.send(f"go movetime {work['movetime']}")
-        elif work["movetime"] is None:
-            self.send("go infinite")
         else:
             self.send(f"go depth {self.args.default_depth}")
 
