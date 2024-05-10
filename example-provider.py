@@ -54,7 +54,6 @@ def register_engine(args, http, engine):
         "name": args.name,
         "maxThreads": args.max_threads,
         "maxHash": args.max_hash,
-        "defaultDepth": args.default_depth,
         "variants": [variant for variant in engine.supported_variants or ["chess"] if variant in variants],
         "providerSecret": secret,
     }
@@ -242,10 +241,10 @@ class Engine:
 
         self.send(f"position fen {work['initialFen']} moves {' '.join(work['moves'])}")
 
-        if work["movetime"]:
-            self.send(f"go movetime {work['movetime']}")
-        else:
-            self.send(f"go depth {self.args.default_depth}")
+        for key in ["movetime", "depth", "nodes"]:
+            if key in work:
+                self.send(f"go {key} {work[key]}")
+                break
 
         job_started.set()
 
@@ -285,7 +284,6 @@ if __name__ == "__main__":
     parser.add_argument("--broker", default="https://engine.lichess.ovh", help="Defaults to https://engine.lichess.ovh")
     parser.add_argument("--token", default=os.environ.get("LICHESS_API_TOKEN"), help="API token with engine:read and engine:write scopes")
     parser.add_argument("--provider-secret", default=os.environ.get("PROVIDER_SECRET"), help="Optional fixed provider secret")
-    parser.add_argument("--default-depth", type=int, default=25)
     parser.add_argument("--max-threads", type=int, default=multiprocessing.cpu_count(), help="Maximum number of available threads")
     parser.add_argument("--max-hash", type=int, default=512, help="Maximum hash table size in MiB")
     parser.add_argument("--keep-alive", type=int, default=300, help="Number of seconds to keep an idle/unused engine process around")
