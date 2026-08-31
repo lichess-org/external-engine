@@ -1,41 +1,38 @@
 #!/usr/bin/env python
 
-"""External engine provider example for lichess.org"""
-
 import argparse
-import concurrent.futures
-import contextlib
+import asyncio
 import logging
 import multiprocessing
 import os
-import requests
 import secrets
-import subprocess
 import sys
 import time
-import threading
+
+import aiohttp
+
 
 _LOG_LEVEL_MAP = {
-        "critical": logging.CRITICAL,
-        "error": logging.CRITICAL,
-        "warning": logging.WARNING,
-        "info": logging.INFO,
-        "debug": logging.DEBUG,
-        "notset": logging.NOTSET,
-        }
+    "critical": logging.CRITICAL,
+    "error": logging.CRITICAL,
+    "warning": logging.WARNING,
+    "info": logging.INFO,
+    "debug": logging.DEBUG,
+    "notset": logging.NOTSET,
+}
 
 
-def ok(res):
-    try:
+async def check_response(res: aiohttp.ClientResponse) -> aiohttp.ClientResponse:
+    if res.status >= 400:
+        logging.error("Response: %s", await res.text())
         res.raise_for_status()
-    except requests.exceptions.HTTPError:
-        logging.error("Response: %s", res.text)
-        raise
     return res
 
 
-def register_engine(args, http, engine):
-    res = ok(http.get(f"{args.lichess}/api/external-engine"))
+async def register_engine(args, http: aiohttp.ClientSession, engine: "Engine") -> str:
+    async with http.get(f"{args.lichess}/api/external-engine") as res:
+        await check_response(res)
+        engines = await res.json()
 
     secret = args.provider_secret or secrets.token_urlsafe(32)
 
@@ -58,221 +55,294 @@ def register_engine(args, http, engine):
         "providerSecret": secret,
     }
 
-    for engine in res.json():
-        if engine["name"] == args.name:
-            logging.info("Updating engine %s", engine["id"])
-            ok(http.put(f"{args.lichess}/api/external-engine/{engine['id']}", json=registration))
+    for registered_engine in engines:
+        if registered_engine["name"] == args.name:
+            logging.info("Updating engine %s", registered_engine["id"])
+            async with http.put(
+                f"{args.lichess}/api/external-engine/{registered_engine['id']}",
+                json=registration,
+            ) as res:
+                await check_response(res)
             break
     else:
         logging.info("Registering new engine")
-        ok(http.post(f"{args.lichess}/api/external-engine", json=registration))
+        async with http.post(f"{args.lichess}/api/external-engine", json=registration) as res:
+            await check_response(res)
 
     return secret
 
 
-def main(args):
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    engine = Engine(args)
-    http = requests.Session()
-    http.headers["Authorization"] = f"Bearer {args.token}"
-    secret = register_engine(args, http, engine)
+async def main(args) -> None:
+    engine = await Engine.create(args)
 
-    last_future = concurrent.futures.Future()
-    last_future.set_result(None)
+    auth_headers = {"Authorization": f"Bearer {args.token}"}
+    acquire_timeout = aiohttp.ClientTimeout(total=12)
+    stream_timeout = aiohttp.ClientTimeout(total=None)
 
-    backoff = 1
-    while True:
-        try:
-            res = ok(http.post(f"{args.broker}/api/external-engine/work", json={"providerSecret": secret}, timeout=12))
-            if res.status_code != 200:
-                if engine.alive and engine.idle_time() > args.keep_alive:
-                    logging.info("Terminating idle engine")
-                    engine.terminate()
+    async with (
+        aiohttp.ClientSession(headers=auth_headers) as http,
+        aiohttp.ClientSession(timeout=stream_timeout) as submit_http,
+    ):
+        secret = await register_engine(args, http, engine)
+
+        last_job: asyncio.Task | None = None
+        backoff = 1.0
+
+        while True:
+            try:
+                async with http.post(
+                    f"{args.broker}/api/external-engine/work",
+                    json={"providerSecret": secret},
+                    timeout=acquire_timeout,
+                ) as res:
+                    await check_response(res)
+                    if res.status != 200:
+                        if engine.alive and engine.idle_time() > args.keep_alive:
+                            await engine.terminate()
+                        continue
+                    job = await res.json()
+            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+                logging.error("Error while trying to acquire work: %s", err)
+                backoff = min(backoff * 1.5, 10)
+                await asyncio.sleep(backoff)
                 continue
-            job = res.json()
-        except requests.exceptions.RequestException as err:
-            logging.error("Error while trying to acquire work: %s", err)
-            backoff = min(backoff * 1.5, 10)
-            time.sleep(backoff)
-            continue
-        else:
-            backoff = 1
+            else:
+                backoff = 1.0
 
-        try:
-            engine.stop()
-        except EOFError:
-            pass
-        last_future.result()
+            try:
+                await engine.stop()
+            except EOFError:
+                pass
 
-        if not engine.alive:
-            engine = Engine(args)
+            if last_job is not None:
+                await last_job
 
-        job_started = threading.Event()
-        last_future = executor.submit(handle_job, args, engine, job, job_started)
-        job_started.wait()
+            if not engine.alive:
+                engine = await Engine.create(args)
+
+            job_started = asyncio.Event()
+            last_job = asyncio.create_task(handle_job(args, submit_http, engine, job, job_started))
+            await job_started.wait()
 
 
-def handle_job(args, engine, job, job_started):
+async def handle_job(
+    args,
+    http: aiohttp.ClientSession,
+    engine: "Engine",
+    job,
+    job_started: asyncio.Event,
+) -> None:
     try:
         logging.info("Handling job %s", job["id"])
-        with engine.analyse(job, job_started) as analysis_stream:
-            ok(requests.post(f"{args.broker}/api/external-engine/work/{job['id']}", data=analysis_stream))
-    except requests.exceptions.ConnectionError:
+        async with http.post(
+            f"{args.broker}/api/external-engine/work/{job['id']}",
+            data=engine.analyse(job, job_started),
+        ) as res:
+            await check_response(res)
+    except aiohttp.ClientConnectionError:
         logging.info("Connection closed while streaming analysis")
-    except requests.exceptions.RequestException as err:
+    except aiohttp.ClientError:
         logging.exception("Error while submitting work")
-        time.sleep(5)
+        await asyncio.sleep(5)
     except EOFError:
         logging.exception("Engine died")
-        time.sleep(5)
+        await asyncio.sleep(5)
     finally:
         job_started.set()
 
 
 class Engine:
-    def __init__(self, args):
-        self.process = subprocess.Popen(args.engine, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
+    def __init__(self, args, process: asyncio.subprocess.Process):
+        self.process = process
         self.args = args
         self.session_id = None
         self.hash = None
         self.threads = None
         self.multi_pv = None
         self.uci_variant = None
-        self.supported_variants = []
+        self.supported_variants: list[str] = []
         self.last_used = time.monotonic()
-        self.alive = True
-        self.stop_lock = threading.Lock()
+        self.stop_lock = asyncio.Lock()
 
-        self.uci()
-        self.setoption("UCI_AnalyseMode", "true")
-        self.setoption("UCI_Chess960", "true")
+    @classmethod
+    async def create(cls, args) -> "Engine":
+        process = await asyncio.create_subprocess_shell(
+            args.engine,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+        )
+        self = cls(args, process)
+
+        await self.uci()
+        await self.setoption("UCI_AnalyseMode", "true")
+        await self.setoption("UCI_Chess960", "true")
         for name, value in args.setoption:
-            self.setoption(name, value)
+            await self.setoption(name, value)
 
-    def idle_time(self):
+        return self
+
+    def alive(self) -> bool:
+        return self.process.returncode is None
+
+    def idle_time(self) -> float:
         return time.monotonic() - self.last_used
 
-    def terminate(self):
+    async def terminate(self) -> None:
+        if not self.alive():
+            return
+
         self.process.terminate()
-        self.alive = False
+        try:
+            await asyncio.wait_for(self.process.wait(), timeout=2)
+        except asyncio.TimeoutError:
+            self.process.kill()
+            await self.process.wait()
 
-    def send(self, command):
+    async def send(self, command: str) -> None:
+        if not self.alive():
+            raise EOFError()
+
+        assert self.process.stdin is not None
         logging.debug("%d << %s", self.process.pid, command)
-        self.process.stdin.write(command + "\n")
-        self.process.stdin.flush()
+        try:
+            self.process.stdin.write((command + "\n").encode())
+            await self.process.stdin.drain()
+        except (BrokenPipeError, ConnectionResetError) as err:
+            raise EOFError() from err
 
-    def recv(self):
+    async def recv(self) -> tuple[str, str]:
+        assert self.process.stdout is not None
+
         while True:
-            line = self.process.stdout.readline()
-            if line == "":
-                self.alive = False
+            line = await self.process.stdout.readline()
+            if not line:
                 raise EOFError()
 
-            line = line.rstrip()
-            if not line:
+            text = line.decode("utf-8", errors="replace").rstrip()
+            if not text:
                 continue
 
-            logging.debug("%d >> %s", self.process.pid, line)
-
-            command_and_params = line.split(None, 1)
+            logging.debug("%d >> %s", self.process.pid, text)
+            command_and_params = text.split(None, 1)
 
             if len(command_and_params) == 1:
                 return command_and_params[0], ""
-            else:
-                return command_and_params
+            return command_and_params[0], command_and_params[1]
 
-    def uci(self):
-        self.send("uci")
+    async def uci(self) -> None:
+        await self.send("uci")
         while True:
-            command, args = self.recv()
+            command, params = await self.recv()
             if command == "option":
                 name = None
-                args = args.split()
-                while args:
-                    arg = args.pop(0)
-                    if arg == "name":
-                        name = args.pop(0)
-                    elif name == "UCI_Variant" and arg == "var":
-                        self.supported_variants.append(args.pop(0))
+                params_parts = params.split()
+                while params_parts:
+                    arg = params_parts.pop(0)
+                    if arg == "name" and params_parts:
+                        name = params_parts.pop(0)
+                    elif name == "UCI_Variant" and arg == "var" and params_parts:
+                        self.supported_variants.append(params_parts.pop(0))
             elif command == "uciok":
                 break
 
         if self.supported_variants:
             logging.info("Supported variants: %s", ", ".join(self.supported_variants))
 
-    def isready(self):
-        self.send("isready")
+    async def isready(self) -> None:
+        await self.send("isready")
         while True:
-            line, _ = self.recv()
-            if line == "readyok":
+            command, _ = await self.recv()
+            if command == "readyok":
                 break
 
-    def setoption(self, name, value):
-        self.send(f"setoption name {name} value {value}")
+    async def setoption(self, name, value) -> None:
+        await self.send(f"setoption name {name} value {value}")
 
-    @contextlib.contextmanager
-    def analyse(self, job, job_started):
+    async def analyse(self, job, job_started: asyncio.Event):
         work = job["work"]
+        read_task: asyncio.Task | None = None
 
-        if work["sessionId"] != self.session_id:
-            self.session_id = work["sessionId"]
-            self.send("ucinewgame")
-            self.isready()
+        try:
+            if work["sessionId"] != self.session_id:
+                self.session_id = work["sessionId"]
+                await self.send("ucinewgame")
+                await self.isready()
 
-        options_changed = False
-        if self.threads != work["threads"]:
-            self.setoption("Threads", work["threads"])
-            self.threads = work["threads"]
-            options_changed = True
-        if self.hash != work["hash"]:
-            self.setoption("Hash", work["hash"])
-            self.hash = work["hash"]
-            options_changed = True
-        if self.multi_pv != work["multiPv"]:
-            self.setoption("MultiPV", work["multiPv"])
-            self.multi_pv = work["multiPv"]
-            options_changed = True
-        if self.uci_variant != work["variant"]:
-            self.setoption("UCI_Variant", work["variant"])
-            self.uci_variant = work["variant"]
-            options_changed = True
-        if options_changed:
-            self.isready()
+            options_changed = False
+            if self.threads != work["threads"]:
+                await self.setoption("Threads", work["threads"])
+                self.threads = work["threads"]
+                options_changed = True
+            if self.hash != work["hash"]:
+                await self.setoption("Hash", work["hash"])
+                self.hash = work["hash"]
+                options_changed = True
+            if self.multi_pv != work["multiPv"]:
+                await self.setoption("MultiPV", work["multiPv"])
+                self.multi_pv = work["multiPv"]
+                options_changed = True
+            if self.uci_variant != work["variant"]:
+                await self.setoption("UCI_Variant", work["variant"])
+                self.uci_variant = work["variant"]
+                options_changed = True
+            if options_changed:
+                await self.isready()
 
-        self.send(f"position fen {work['initialFen']} moves {' '.join(work['moves'])}")
+            await self.send(f"position fen {work['initialFen']} moves {' '.join(work['moves'])}")
 
-        for key in ["movetime", "depth", "nodes"]:
-            if key in work:
-                self.send(f"go {key} {work[key]}")
-                break
-
-        job_started.set()
-
-        def stream():
-            while True:
-                command, params = self.recv()
-                if command == "bestmove":
+            for key in ("movetime", "depth", "nodes"):
+                if key in work:
+                    await self.send(f"go {key} {work[key]}")
                     break
-                elif command == "info":
+
+            job_started.set()
+            last_ping = time.monotonic()
+
+            read_task = asyncio.create_task(self.recv())
+
+            while True:
+                done, _ = await asyncio.wait({read_task}, timeout=max(0, 15 + last_ping - time.monotonic()))
+                self.last_used = time.monotonic()
+                if not done:
+                    # To support long searches, a provider must send '{"keepalive":true}\n' in the
+                    # same streamed work submission every 15 seconds.
+
+                    yield b'{"keepalive":true}\n'
+                    last_ping = time.monotonic()
+                    continue
+
+                command, params = read_task.result()
+                read_task = None
+
+                if command == "bestmove":
+                    return
+
+                read_task = asyncio.create_task(self.recv())
+
+                if command == "info":
                     if "score" in params:
-                        yield (command + " " + params + "\n").encode("utf-8")
+                        yield f"{command} {params}\n".encode()
                 else:
                     logging.warning("Unexpected engine command: %s", command)
-
-        analysis = stream()
-        try:
-            yield analysis
         finally:
-            self.stop()
-            for _ in analysis:
-                pass
+            if read_task is not None and self.alive():
+                try:
+                    await self.stop()
+                    await self.drain_to_bestmove(read_task)
+                except EOFError:
+                    pass
 
-        self.last_used = time.monotonic()
+            self.last_used = time.monotonic()
 
-    def stop(self):
-        if self.alive:
-            with self.stop_lock:
-                self.send("stop")
+    async def drain_to_bestmove(self, read_task: asyncio.Task) -> None:
+        command, _ = await read_task
+        while command != "bestmove" and self.alive():
+            command, _ = await self.recv()
+
+    async def stop(self) -> None:
+        async with self.stop_lock:
+            if self.alive():
+                await self.send("stop")
 
 
 if __name__ == "__main__":
@@ -304,4 +374,4 @@ if __name__ == "__main__":
         print(f"Need LICHESS_API_TOKEN environment variable from {args.lichess}/account/oauth/token/create?scopes[]=engine:read&scopes[]=engine:write")
         sys.exit(128)
 
-    main(args)
+    asyncio.run(main(args))
