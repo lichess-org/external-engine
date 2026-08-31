@@ -252,6 +252,7 @@ class Engine:
             while True:
                 command, params = self.recv()
                 if command == "bestmove":
+                    yield (command + " " + params + "\n").encode("utf-8")
                     break
                 elif command == "info":
                     if "score" in params:
