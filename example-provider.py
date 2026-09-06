@@ -315,6 +315,7 @@ class Engine:
                 read_task = None
 
                 if command == "bestmove":
+                    yield f"{command} {params}\n".encode()
                     return
 
                 read_task = asyncio.create_task(self.recv())
