@@ -97,7 +97,7 @@ async def main(args) -> None:
                 ) as res:
                     await check_response(res)
                     if res.status != 200:
-                        if engine.alive and engine.idle_time() > args.keep_alive:
+                        if engine.alive() and engine.idle_time() > args.keep_alive:
                             await engine.terminate()
                         continue
                     job = await res.json()
@@ -117,7 +117,7 @@ async def main(args) -> None:
             if last_job is not None:
                 await last_job
 
-            if not engine.alive:
+            if not engine.alive():
                 engine = await Engine.create(args)
 
             job_started = asyncio.Event()

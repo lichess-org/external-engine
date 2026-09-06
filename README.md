@@ -12,7 +12,7 @@ Example provider
 2. Run:
 
    ```
-   pip3 install asyncio # you only need to do this once
+   pip3 install -r requirements.txt # you only need to do this once
    LICHESS_API_TOKEN=lip_*** python3 example-provider.py --engine /usr/bin/stockfish
    ```
 
