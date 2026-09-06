@@ -12,20 +12,13 @@ Example provider
 2. Run:
 
    ```
+   pip3 install -r requirements.txt # you only need to do this once
    LICHESS_API_TOKEN=lip_*** python3 example-provider.py --engine /usr/bin/stockfish
    ```
 
 3. Visit https://lichess.org/analysis
 
 4. Open the hamburger menu and select the *Alpha 2* provider
-
-Official provider
------------------
-
-An official (more user-friendly) provider is under development.
-
-Will provide Stockfish 15 for 64-bit x86 platforms, built with profile-guided
-optimization, automatically selecting the best available binary for your CPU.
 
 Third party clients and providers
 ---------------------------------
