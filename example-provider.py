@@ -12,6 +12,9 @@ import time
 import aiohttp
 
 
+PROTOCOL_VERSION = 1
+
+
 _LOG_LEVEL_MAP = {
     "critical": logging.CRITICAL,
     "error": logging.CRITICAL,
@@ -53,6 +56,7 @@ async def register_engine(args, http: aiohttp.ClientSession, engine: "Engine") -
         "maxHash": args.max_hash,
         "variants": [variant for variant in engine.supported_variants or ["chess"] if variant in variants],
         "providerSecret": secret,
+        "protocolVersion": PROTOCOL_VERSION,
     }
 
     for registered_engine in engines:
@@ -92,7 +96,7 @@ async def main(args) -> None:
             try:
                 async with http.post(
                     f"{args.broker}/api/external-engine/work",
-                    json={"providerSecret": secret},
+                    json={"providerSecret": secret, "protocolVersion": PROTOCOL_VERSION},
                     timeout=acquire_timeout,
                 ) as res:
                     await check_response(res)
